@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Search, Scale, Filter, Users, Eye, Mail, Copy, 
   CheckCircle2, X, AlertTriangle, ExternalLink, Loader2, 
-  MapPin, Building2, Landmark, RefreshCw, FileText
+  MapPin, Building2, Landmark, RefreshCw, FileText, ChevronRight,
+  TrendingUp, Award, DollarSign
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 
@@ -36,7 +37,7 @@ export default function App() {
     let results = [];
 
     try {
-      // 1. Busca no Supabase (Executivo Federal, Municipal e Estadual)
+      // 1. Busca no Supabase (Municipal, Estadual e Presidência)
       if (selectedCargo !== "deputado_federal") {
         let query = supabase.from('politicos').select('*');
 
@@ -54,6 +55,7 @@ export default function App() {
         if (!supaError && supaData) {
           const formattedSupa = supaData.map(p => ({
             id: `supa-${p.id}`,
+            rawId: p.id,
             nome: p.nome_urna || p.nome,
             nomeCompleto: p.nome,
             siglaPartido: p.partido,
@@ -61,9 +63,11 @@ export default function App() {
             cargo: p.cargo,
             esfera: p.esfera,
             municipio: p.municipio,
-            urlFoto: p.foto_url || "https://via.placeholder.com/150",
-            origem: "Supabase",
-            gastoAcumulado: p.gasto_acumulado
+            anoEleicao: p.ano_eleicao || 2024,
+            situacao: p.situacao || "Eleito",
+            urlFoto: p.foto_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
+            origem: "Supabase (TSE)",
+            gastoAcumulado: Number(p.gasto_acumulado) || 0
           }));
           results = [...results, ...formattedSupa];
         }
@@ -71,7 +75,7 @@ export default function App() {
 
       // 2. Busca na API Aberta da Câmara (Deputados Federais)
       if (selectedCargo === "todos" || selectedCargo === "deputado_federal") {
-        let camaraUrl = `https://dadosabertos.camara.leg.br/api/v2/deputados?ordem=ASC&ordenarPor=nome&itens=15`;
+        let camaraUrl = `https://dadosabertos.camara.leg.br/api/v2/deputados?ordem=ASC&ordenarPor=nome&itens=16`;
         if (searchTerm.trim()) camaraUrl += `&nome=${encodeURIComponent(searchTerm.trim())}`;
         if (selectedUf) camaraUrl += `&siglaUf=${selectedUf}`;
 
@@ -80,6 +84,7 @@ export default function App() {
           const camaraData = await res.json();
           const formattedCamara = (camaraData.dados || []).map(d => ({
             id: d.id,
+            rawId: d.id,
             nome: d.nome,
             nomeCompleto: d.nome,
             siglaPartido: d.siglaPartido,
@@ -89,7 +94,10 @@ export default function App() {
             municipio: "Brasília / DF",
             urlFoto: d.urlFoto,
             email: d.email,
-            origem: "Câmara Federal (API Ao Vivo)"
+            anoEleicao: 2022,
+            situacao: "Em Exercício",
+            origem: "Câmara Federal (API Ao Vivo)",
+            gastoAcumulado: 0
           }));
           results = [...results, ...formattedCamara];
         }
@@ -107,16 +115,19 @@ export default function App() {
     fetchAllData();
   }, [fetchAllData]);
 
-  // Carrega despesas ao vivo para deputados federais
+  // Carrega despesas ao vivo para deputados federais com busca abrangente
   const inspectPolitician = async (pol) => {
     setSelectedPolitician(pol);
     setIsLoadingExpenses(true);
     setExpenses([]);
 
-    if (pol.esfera === "Federal" && !String(pol.id).startsWith("supa-")) {
+    const isFederalCamara = pol.esfera === "Federal" && !String(pol.id).startsWith("supa-");
+
+    if (isFederalCamara) {
       try {
+        // Tenta buscar as despesas mais recentes registradas na CEAP
         const res = await fetch(
-          `https://dadosabertos.camara.leg.br/api/v2/deputados/${pol.id}/despesas?ordem=DESC&ordenarPor=dataDocumento&itens=20`,
+          `https://dadosabertos.camara.leg.br/api/v2/deputados/${pol.rawId}/despesas?ordem=DESC&ordenarPor=dataDocumento&itens=25`,
           { headers: { Accept: "application/json" } }
         );
         if (res.ok) {
@@ -124,28 +135,31 @@ export default function App() {
           setExpenses(data.dados || []);
         }
       } catch (e) {
-        console.error(e);
+        console.error("Erro ao buscar despesas da câmara:", e);
       }
     }
     setIsLoadingExpenses(false);
   };
 
   const openPetitionModal = (pol) => {
-    const textoOficio = `AO MINISTÉRIO PÚBLICO / TRIBUNAL DE CONTAS / FALA.BR
+    const textoOficio = `AO MINISTÉRIO PÚBLICO / TRIBUNAL DE CONTAS / SISTEMA FALA.BR
 
-ASSUNTO: SOLICITAÇÃO FORMAL DE AUDITORIA E PRESTAÇÃO DE CONTAS (LEI 12.527/2011 E ART. 37 DA CF/88)
+ASSUNTO: REQUERIMENTO FORMAL DE TRANSPARÊNCIA E AUDITORIA DE RECURSOS PÚBLICOS (LEI Nº 12.527/2011 E ART. 37 DA CF/88)
 
 Excelentíssimos Senhores,
 
-Na condição de cidadão e contribuinte, solicito a auditoria das despesas públicas e subsídios referentes à seguinte autoridade:
+Na qualidade de cidadão e contribuinte fiscalizador, solicito a disponibilização detalhada e auditoria das contas públicas e subsídios referentes à seguinte autoridade:
 
-NOME: ${pol.nome.toUpperCase()}
+NOME: ${pol.nome.toUpperCase()} (${pol.nomeCompleto})
 CARGO: ${pol.cargo} (${pol.esfera})
 PARTIDO / UF: ${pol.siglaPartido} - ${pol.siglaUf}
-LOCALIDADE: ${pol.municipio || "Âmbito Nacional"}
+LOCALIDADE: ${pol.municipio || "Âmbito Estadual/Nacional"}
 
-REQUERIMENTO:
-Requer-se a disponibilização integral dos comprovativos fiscais de despesas de gabinete, diárias e verbas indenizatórias do exercício corrente.
+FUNDAMENTAÇÃO JURÍDICA:
+Com amparo no Art. 5º, XXXIII e Art. 37 da Constituição Federal de 1988, combinados com a Lei de Acesso à Informação (Lei 12.527/2011), requer-se:
+1. O detalhamento das notas fiscais comprobatórias de verba de gabinete, cota parlamentar ou suprimento de fundos;
+2. A prestação de contas dos valores pagos a título de diárias, assessoria e serviços de divulgação;
+3. Relatório circunstanciado de assiduidade em sessões deliberativas.
 
 Data: ${new Date().toLocaleDateString('pt-BR')}
 Cidadão Fiscalizador`;
@@ -172,16 +186,16 @@ Cidadão Fiscalizador`;
               <div className="flex items-center gap-2">
                 <span className="font-extrabold text-slate-900 text-lg">Radar Cívico</span>
                 <span className="text-[10px] font-bold font-mono uppercase px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200">
-                  Supabase + APIs Oficiais
+                  Transparência 360°
                 </span>
               </div>
-              <p className="text-xs text-slate-500">Auditoria integrada: Presidência, Governadores, Deputados, Prefeitos e Vereadores</p>
+              <p className="text-xs text-slate-500">Auditoria integrada de todas as esferas: Presidência, Governadores, Deputados, Prefeitos e Vereadores</p>
             </div>
           </div>
 
           <div className="text-xs font-mono text-slate-500 flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-            Base sincronizada com o Supabase
+            Conexão: Supabase + API Câmara + TSE
           </div>
         </div>
       </header>
@@ -194,7 +208,7 @@ Cidadão Fiscalizador`;
               Pesquisar Políticos em Todas as Esferas
             </h1>
             <p className="text-sm text-slate-600">
-              Filtre por cargo (Presidente, Governador, Prefeito, Vereador ou Deputado), estado ou digite o nome para auditar.
+              Audite prefeitos, vereadores, governadores, deputados federais e a presidência.
             </p>
           </div>
 
@@ -258,8 +272,8 @@ Cidadão Fiscalizador`;
         {/* LISTAGEM DOS RESULTADOS */}
         <div className="space-y-3">
           <div className="flex justify-between items-center text-xs text-slate-500 font-mono px-1">
-            <span>Encontrados: <strong>{politicians.length}</strong></span>
-            <span>Bases: Supabase + API Federal</span>
+            <span>Resultados: <strong>{politicians.length}</strong></span>
+            <span>Origem: Supabase (TSE) + API Federal</span>
           </div>
 
           {isLoading ? (
@@ -294,7 +308,7 @@ Cidadão Fiscalizador`;
                         src={pol.urlFoto} 
                         alt={pol.nome} 
                         className="w-12 h-14 rounded-lg object-cover bg-slate-100 border border-slate-200 shrink-0"
-                        onError={(e) => { e.target.src = "https://via.placeholder.com/150"; }}
+                        onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200"; }}
                       />
                       <div className="overflow-hidden">
                         <h3 className="font-bold text-slate-900 text-sm leading-tight truncate" title={pol.nome}>
@@ -335,94 +349,191 @@ Cidadão Fiscalizador`;
         </div>
       </main>
 
-      {/* PAINEL LATERAL DE INSPEÇÃO */}
+      {/* PAINEL LATERAL DE INSPEÇÃO COMPLETA */}
       {selectedPolitician && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex justify-end">
           <div className="w-full max-w-xl bg-white border-l border-slate-200 h-full overflow-y-auto p-6 space-y-6 shadow-2xl flex flex-col justify-between">
             <div className="space-y-5">
+              
+              {/* CABEÇALHO DO PERFIL */}
               <div className="flex items-start justify-between border-b pb-4">
                 <div className="flex items-center gap-3">
-                  <img src={selectedPolitician.urlFoto} alt={selectedPolitician.nome} className="w-14 h-16 rounded-xl object-cover border" />
+                  <img 
+                    src={selectedPolitician.urlFoto} 
+                    alt={selectedPolitician.nome} 
+                    className="w-14 h-16 rounded-xl object-cover border border-slate-200 shadow-xs shrink-0" 
+                    onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200"; }}
+                  />
                   <div>
-                    <h2 className="text-lg font-bold text-slate-900">{selectedPolitician.nome}</h2>
+                    <h2 className="text-lg font-bold text-slate-900 leading-tight">{selectedPolitician.nome}</h2>
                     <p className="text-xs text-slate-500 font-mono">
                       {selectedPolitician.cargo} • {selectedPolitician.siglaPartido}-{selectedPolitician.siglaUf}
                     </p>
-                    <p className="text-[11px] text-slate-600">{selectedPolitician.municipio}</p>
+                    <p className="text-[11px] text-slate-600 font-mono mt-0.5">{selectedPolitician.municipio}</p>
+                    <span className="inline-block mt-1 text-[10px] font-bold font-mono uppercase px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      Situação: {selectedPolitician.situacao || "Eleito"} ({selectedPolitician.anoEleicao || 2024})
+                    </span>
                   </div>
                 </div>
-                <button onClick={() => setSelectedPolitician(null)} className="text-slate-400 hover:text-slate-700">
+                <button onClick={() => setSelectedPolitician(null)} className="text-slate-400 hover:text-slate-700 p-1">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* ROTEAMENTO DE AUDITORIA POR CARGO/ESFERA */}
+              {/* ROTEAMENTO DE AUDITORIA POR CARGO */}
               {selectedPolitician.cargo === "Presidente" || selectedPolitician.cargo === "Vice-Presidente" ? (
+                /* CASO 1: PRESIDÊNCIA */
                 <div className="space-y-4">
                   <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-xs">
                     <h3 className="font-bold text-amber-950 text-sm">Estrutura de Gastos do Poder Executivo Federal</h3>
                     <p className="text-amber-900 leading-relaxed">
-                      Os gastos da Chefia de Estado e de Governo não utilizam a cota parlamentar (CEAP), sendo fiscalizados diretamente pelo <strong>TCU</strong> e controlados pelo <strong>Portal da Transparência (CGU) / SIAFI</strong>.
+                      Os gastos da Chefia do Executivo não utilizam cota parlamentar (CEAP), sendo fiscalizados diretamente pelo <strong>TCU</strong> e controlados pelo <strong>Portal da Transparência (CGU) / SIAFI</strong>.
                     </p>
                     <div className="pt-2 border-t border-amber-200 font-mono text-[11px] space-y-1">
                       <div>• <strong>Cartão de Pagamentos (CPGF):</strong> Gastos de custeio e apoio ao gabinete.</div>
-                      <div>• <strong>Diárias e Passagens:</strong> Missões diplomáticas e viagens domésticas.</div>
-                      <div>• <strong>Apoio Logístico FAB:</strong> Fretamentos e deslocamentos em aeronaves oficiais.</div>
+                      <div>• <strong>Diárias e Viagens Oficiais:</strong> Missões diplomáticas e roteiros de comitiva.</div>
+                      <div>• <strong>Aeronaves e Fretamento:</strong> Apoio operacional e de segurança da FAB.</div>
                     </div>
                   </div>
 
-<div className="space-y-2 pt-2">
-  <a
-    href="https://portaldatransparencia.gov.br/cartoes"
-    target="_blank"
-    rel="noreferrer"
-    className="w-full py-2.5 px-3 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold font-mono transition flex items-center justify-center gap-2 shadow-xs"
-  >
-    <ExternalLink className="w-4 h-4" />
-    Consultar Cartões de Pagamento (CPGF)
-  </a>
+                  <div className="space-y-2 pt-1">
+                    <a
+                      href="https://portaldatransparencia.gov.br/cartoes"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="w-full py-2.5 px-3 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold font-mono transition flex items-center justify-center gap-2 shadow-xs"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      Auditar Cartão Corporativo (CPGF) na CGU
+                    </a>
 
-  <a
-    href="https://portaldatransparencia.gov.br/viagens"
-    target="_blank"
-    rel="noreferrer"
-    className="w-full py-2.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold font-mono transition flex items-center justify-center gap-2 border border-slate-300"
-  >
-    <ExternalLink className="w-4 h-4" />
-    Painel de Viagens e Diárias Oficiais
-  </a>
-</div>
+                    <a
+                      href="https://portaldatransparencia.gov.br/viagens"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="w-full py-2.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold font-mono transition flex items-center justify-center gap-2 border border-slate-300"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      Consultar Painel de Viagens e Diárias
+                    </a>
+                  </div>
                 </div>
-              ) : selectedPolitician.esfera === "Federal" ? (
+
+              ) : selectedPolitician.cargo === "Deputado Federal" && !String(selectedPolitician.id).startsWith("supa-") ? (
+                /* CASO 2: DEPUTADOS FEDERAIS (API DA CÂMARA EM TEMPO REAL) */
                 <div className="space-y-3">
-                  <h3 className="text-xs font-bold uppercase text-slate-500 font-mono">Últimas Notas Fiscais (Cota CEAP):</h3>
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xs font-bold uppercase text-slate-500 font-mono">Últimas Notas Fiscais Registradas (CEAP):</h3>
+                    <a
+                      href={`https://www.camara.leg.br/deputados/${selectedPolitician.rawId}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] text-blue-600 hover:underline flex items-center gap-1 font-mono"
+                    >
+                      Página Oficial <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+
                   {isLoadingExpenses ? (
                     <div className="py-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-blue-600" /></div>
                   ) : expenses.length === 0 ? (
-                    <div className="p-4 bg-slate-50 text-xs text-slate-500 rounded-lg">Sem despesas recentes registadas na API.</div>
+                    <div className="p-4 bg-slate-50 border rounded-lg text-xs text-slate-500 font-mono space-y-2">
+                      <p>Nenhuma despesa recente devolvida na listagem rápida da API oficial.</p>
+                      <a
+                        href={`https://www.camara.leg.br/deputados/${selectedPolitician.rawId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-blue-600 underline font-bold block"
+                      >
+                        Clique aqui para ver a prestação completa no site da Câmara →
+                      </a>
+                    </div>
                   ) : (
                     <div className="space-y-2">
                       {expenses.map((exp, i) => (
                         <div key={i} className="p-3 bg-slate-50 border rounded-lg text-xs space-y-1">
                           <div className="flex justify-between font-bold">
-                            <span>{exp.nomeFornecedor}</span>
-                            <span>{formatBRL(exp.valorLiquido)}</span>
+                            <span className="truncate pr-2">{exp.nomeFornecedor}</span>
+                            <span className="font-mono shrink-0">{formatBRL(exp.valorLiquido)}</span>
                           </div>
-                          <p className="text-[11px] text-slate-500">{exp.tipoDespesa} • {exp.dataDocumento}</p>
+                          <p className="text-[11px] text-slate-500 font-mono">{exp.tipoDespesa} • {exp.dataDocumento}</p>
+                          {exp.urlDocumento && (
+                            <a href={exp.urlDocumento} target="_blank" rel="noreferrer" className="text-[11px] text-blue-600 hover:underline inline-flex items-center gap-1 font-mono pt-0.5">
+                              <ExternalLink className="w-3 h-3" /> Ver Nota Fiscal Original
+                            </a>
+                          )}
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
+
               ) : (
-                <div className="p-4 bg-slate-50 border rounded-xl space-y-2 text-xs">
-                  <h3 className="font-bold text-slate-900">Transparência Municipal e Estadual</h3>
-                  <p className="text-slate-600 leading-relaxed">
-                    Os dados deste político foram carregados a partir da base do Tribunal Superior Eleitoral (TSE) gravada no seu <strong>Supabase</strong>.
-                  </p>
-                  <p className="text-slate-500 font-mono text-[11px]">Origem: Prestação de Contas Eleitorais e Portal da Transparência Local.</p>
+                /* CASO 3: VEREADORES, PREFEITOS E GOVERNADORES (MUNICIPAL / ESTADUAL) */
+                <div className="space-y-4">
+                  {/* Card de Informações Financeiras */}
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-700 uppercase font-mono">Custo / Gasto Registrado:</span>
+                      <span className="text-base font-extrabold font-mono text-slate-900">
+                        {selectedPolitician.gastoAcumulado > 0 ? formatBRL(selectedPolitician.gastoAcumulado) : "Sob prestação"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Valores obtidos através da prestação anual de contas eleitorais no TSE e portais de transparência de {selectedPolitician.municipio}.
+                    </p>
+                  </div>
+
+                  {/* Links de Auditoria Oficial dos Órgãos de Controle */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold uppercase text-slate-500 font-mono">Bases de Auditoria Oficial:</h4>
+                    
+                    {/* Link TSE DivulgaCand */}
+                    <a
+                      href="https://divulgacandcontas.tse.jus.br"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="w-full p-3 bg-white border border-slate-200 hover:border-blue-500 rounded-lg text-xs font-semibold flex items-center justify-between group transition shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Award className="w-4 h-4 text-emerald-600" />
+                        <div>
+                          <span className="text-slate-900 group-hover:text-blue-700 block">Declaração de Bens e Doadores (TSE)</span>
+                          <span className="text-[10px] text-slate-400 font-mono">DivulgaCandContas oficial</span>
+                        </div>
+                      </div>
+                      <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600" />
+                    </a>
+
+                    {/* Link Tribunal de Contas */}
+                    <a
+                      href={`https://www.google.com/search?q=tribunal+de+contas+prestacao+contas+${encodeURIComponent(selectedPolitician.nome)}+${encodeURIComponent(selectedPolitician.municipio || '')}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="w-full p-3 bg-white border border-slate-200 hover:border-blue-500 rounded-lg text-xs font-semibold flex items-center justify-between group transition shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Landmark className="w-4 h-4 text-blue-600" />
+                        <div>
+                          <span className="text-slate-900 group-hover:text-blue-700 block">Fiscalização no Tribunal de Contas (TCE/TCM)</span>
+                          <span className="text-[10px] text-slate-400 font-mono">Auditoria de conformidade e contas anuais</span>
+                        </div>
+                      </div>
+                      <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600" />
+                    </a>
+                  </div>
+
+                  {/* Gerador de Cobrança Formal */}
+                  <button
+                    onClick={() => openPetitionModal(selectedPolitician)}
+                    className="w-full py-2.5 px-3 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold font-mono transition flex items-center justify-center gap-2 shadow-xs mt-2"
+                  >
+                    <Mail className="w-4 h-4" />
+                    Gerar Notificação LAI / Cobrar Transparência
+                  </button>
                 </div>
               )}
+
             </div>
 
             <button onClick={() => setSelectedPolitician(null)} className="w-full py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-mono font-semibold">
@@ -438,16 +549,26 @@ Cidadão Fiscalizador`;
           <div className="w-full max-w-xl bg-white border border-slate-200 rounded-xl shadow-2xl p-6 space-y-4">
             <div className="flex items-center justify-between border-b pb-3">
               <span className="font-bold text-sm text-blue-700 flex items-center gap-2">
-                <Scale className="w-4 h-4" /> Notificação Cívica
+                <Scale className="w-4 h-4" /> Notificação Cívica Formal
               </span>
               <button onClick={() => setPetitionModal(null)} className="text-slate-400 hover:text-slate-700"><X className="w-5 h-5" /></button>
             </div>
-            <textarea readOnly rows={10} value={petitionModal.textoOficio} className="w-full bg-slate-50 border rounded-lg p-3 text-xs font-mono select-all focus:outline-none" />
+            <textarea readOnly rows={12} value={petitionModal.textoOficio} className="w-full bg-slate-50 border rounded-lg p-3 text-xs font-mono select-all focus:outline-none" />
             <div className="flex justify-between items-center">
               {copied && <span className="text-emerald-700 text-xs font-mono font-bold">Copiado com sucesso!</span>}
-              <button onClick={() => handleCopy(petitionModal.textoOficio)} className="px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1">
-                <Copy className="w-3.5 h-3.5" /> Copiar Notificação
-              </button>
+              <div className="flex gap-2">
+                <button onClick={() => handleCopy(petitionModal.textoOficio)} className="px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1">
+                  <Copy className="w-3.5 h-3.5" /> Copiar Notificação
+                </button>
+                <a
+                  href={`https://falabr.cgu.gov.br`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-xs font-semibold flex items-center gap-1 shadow-xs"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" /> Protocolar no Fala.BR
+                </a>
+              </div>
             </div>
           </div>
         </div>
