@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Search, Scale, Filter, Users, Eye, Mail, Copy, 
   CheckCircle2, X, AlertTriangle, ExternalLink, Loader2, 
-  MapPin, Building2, Landmark, RefreshCw, FileText,
-  Award, DollarSign, ShieldCheck
+  Building2, Landmark, RefreshCw, FileText,
+  Award, DollarSign, Wallet, ShieldAlert, ArrowUpRight
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 
@@ -12,37 +12,6 @@ const ESTADOS_BRASIL = [
   "MG", "MS", "MT", "PA", "PB", "PE", "PI", "PR", "RJ", "RN", 
   "RO", "RR", "RS", "SC", "SE", "SP", "TO"
 ];
-
-// Mapeamento oficial dos Tribunais de Contas por Estado (TCE/TCM)
-const MAPA_TRIBUNAIS_CONTAS = {
-  SP: { nome: "TCE-SP / TCM-SP", url: "https://www.tcesp.tc.br/" },
-  RJ: { nome: "TCE-RJ / TCM-Rio", url: "https://www.tcerj.tc.br/" },
-  MG: { nome: "TCE-MG", url: "https://www.tce.mg.gov.br/" },
-  RS: { nome: "TCE-RS", url: "https://portal.tce.rs.gov.br/" },
-  PR: { nome: "TCE-PR", url: "https://www.tce.pr.gov.br/" },
-  SC: { nome: "TCE-SC", url: "https://www.tcesc.tc.br/" },
-  BA: { nome: "TCE-BA / TCM-BA", url: "https://www.tce.ba.gov.br/" },
-  PE: { nome: "TCE-PE", url: "https://www.tce.pe.gov.br/" },
-  CE: { nome: "TCE-CE", url: "https://www.tce.ce.gov.br/" },
-  GO: { nome: "TCE-GO / TCM-GO", url: "https://www.tce.go.gov.br/" },
-  DF: { nome: "TCDF (Distrito Federal)", url: "https://www.tc.df.gov.br/" },
-  ES: { nome: "TCE-ES", url: "https://www.tcees.tc.br/" },
-  MT: { nome: "TCE-MT", url: "https://www.tce.mt.gov.br/" },
-  MS: { nome: "TCE-MS", url: "https://www.tce.ms.gov.br/" },
-  PA: { nome: "TCE-PA / TCM-PA", url: "https://www.tcepa.tc.br/" },
-  AM: { nome: "TCE-AM", url: "https://www.tce.am.gov.br/" },
-  MA: { nome: "TCE-MA", url: "https://www.tce.ma.gov.br/" },
-  PB: { nome: "TCE-PB", url: "https://tce.pb.gov.br/" },
-  RN: { nome: "TCE-RN", url: "https://www.tce.rn.gov.br/" },
-  AL: { nome: "TCE-AL", url: "https://www.tceal.tc.br/" },
-  PI: { nome: "TCE-PI", url: "https://www.tcepi.tc.br/" },
-  SE: { nome: "TCE-SE", url: "https://www.tce.se.gov.br/" },
-  RO: { nome: "TCE-RO", url: "https://tcero.tc.br/" },
-  TO: { nome: "TCE-TO", url: "https://www.tceto.tc.br/" },
-  AC: { nome: "TCE-AC", url: "https://www.tceac.tc.br/" },
-  AP: { nome: "TCE-AP", url: "https://www.tce.ap.gov.br/" },
-  RR: { nome: "TCE-RR", url: "https://www.tcerr.tc.br/" }
-};
 
 export default function App() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -56,31 +25,25 @@ export default function App() {
   const [selectedPolitician, setSelectedPolitician] = useState(null);
   const [expenses, setExpenses] = useState([]);
   const [isLoadingExpenses, setIsLoadingExpenses] = useState(false);
+  const [inspectorTab, setInspectorTab] = useState("despesas"); // 'despesas' | 'bens' | 'doadores'
   const [petitionModal, setPetitionModal] = useState(null);
   const [copied, setCopied] = useState(false);
 
   const formatBRL = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
-  // Consulta híbrida: Supabase (Presidente, Vereadores, Prefeitos, Gov) + API Câmara (Federais)
+  // Consulta híbrida
   const fetchAllData = useCallback(async () => {
     setIsLoading(true);
     setErrorMsg(null);
     let results = [];
 
     try {
-      // 1. Busca no Supabase
       if (selectedCargo !== "deputado_federal") {
         let query = supabase.from('politicos').select('*');
 
-        if (searchTerm.trim()) {
-          query = query.ilike('nome_urna', `%${searchTerm.trim()}%`);
-        }
-        if (selectedUf) {
-          query = query.eq('estado', selectedUf);
-        }
-        if (selectedCargo !== "todos") {
-          query = query.ilike('cargo', `%${selectedCargo}%`);
-        }
+        if (searchTerm.trim()) query = query.ilike('nome_urna', `%${searchTerm.trim()}%`);
+        if (selectedUf) query = query.eq('estado', selectedUf);
+        if (selectedCargo !== "todos") query = query.ilike('cargo', `%${selectedCargo}%`);
 
         const { data: supaData, error: supaError } = await query;
         if (!supaError && supaData) {
@@ -99,14 +62,15 @@ export default function App() {
             urlFoto: p.foto_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
             origem: "Supabase (TSE)",
             gastoAcumulado: Number(p.gasto_acumulado) || 0,
-            linkTse: p.link_tse,
-            linkTransparencia: p.link_transparencia
+            patrimonioTotal: Number(p.patrimonio_total) || 0,
+            bensDeclarados: p.bens_declarados || [],
+            doadoresCampanha: p.doadores_campanha || [],
+            despesasGabinete: p.despesas_gabinete || []
           }));
           results = [...results, ...formattedSupa];
         }
       }
 
-      // 2. Busca na API Aberta da Câmara (Deputados Federais)
       if (selectedCargo === "todos" || selectedCargo === "deputado_federal") {
         let camaraUrl = `https://dadosabertos.camara.leg.br/api/v2/deputados?ordem=ASC&ordenarPor=nome&itens=16`;
         if (searchTerm.trim()) camaraUrl += `&nome=${encodeURIComponent(searchTerm.trim())}`;
@@ -131,8 +95,10 @@ export default function App() {
             situacao: "Em Exercício",
             origem: "Câmara Federal (API Ao Vivo)",
             gastoAcumulado: 0,
-            linkTse: `https://dadosabertos.camara.leg.br/api/v2/deputados/${d.id}`,
-            linkTransparencia: `https://www.camara.leg.br/deputados/${d.id}`
+            patrimonioTotal: 0,
+            bensDeclarados: [],
+            doadoresCampanha: [],
+            despesasGabinete: []
           }));
           results = [...results, ...formattedCamara];
         }
@@ -150,9 +116,10 @@ export default function App() {
     fetchAllData();
   }, [fetchAllData]);
 
-  // Carrega despesas ao vivo para deputados federais
+  // Carrega despesas da câmara ou usa as do Supabase
   const inspectPolitician = async (pol) => {
     setSelectedPolitician(pol);
+    setInspectorTab(pol.bensDeclarados && pol.bensDeclarados.length > 0 ? "bens" : "despesas");
     setIsLoadingExpenses(true);
     setExpenses([]);
 
@@ -178,22 +145,21 @@ export default function App() {
   const openPetitionModal = (pol) => {
     const textoOficio = `AO MINISTÉRIO PÚBLICO / TRIBUNAL DE CONTAS / SISTEMA FALA.BR
 
-ASSUNTO: REQUERIMENTO FORMAL DE TRANSPARÊNCIA E AUDITORIA DE RECURSOS PÚBLICOS (LEI Nº 12.527/2011 E ART. 37 DA CF/88)
+ASSUNTO: REQUERIMENTO DE AUDITORIA DE RECURSOS PÚBLICOS E DECLARAÇÃO DE BENS (LEI Nº 12.527/2011 E ART. 37 DA CF/88)
 
 Excelentíssimos Senhores,
 
-Na qualidade de cidadão e contribuinte fiscalizador, solicito a disponibilização detalhada e auditoria das contas públicas e subsídios referentes à seguinte autoridade:
+Solicito a auditoria formal das contas, notas fiscais e evolução patrimonial referente à autoridade:
 
 NOME: ${pol.nome.toUpperCase()} (${pol.nomeCompleto})
 CARGO: ${pol.cargo} (${pol.esfera})
 PARTIDO / UF: ${pol.siglaPartido} - ${pol.siglaUf}
-LOCALIDADE: ${pol.municipio || "Âmbito Estadual/Nacional"}
+LOCALIDADE: ${pol.municipio || "Âmbito Nacional"}
 
 FUNDAMENTAÇÃO JURÍDICA:
-Com amparo no Art. 5º, XXXIII e Art. 37 da Constituição Federal de 1988, combinados com a Lei de Acesso à Informação (Lei 12.527/2011), requer-se:
-1. O detalhamento das notas fiscais comprobatórias de verba de gabinete, cota parlamentar ou suprimento de fundos;
-2. A prestação de contas dos valores pagos a título de diárias, assessoria e serviços de divulgação;
-3. Relatório circunstanciado de assiduidade em sessões deliberativas.
+Com base na Lei de Acesso à Informação (Lei 12.527/2011) e no princípio da moralidade administrativa (Art. 37 da Constituição Federal), requer-se:
+1. Comprovantes detalhados de liquidação das despesas de gabinete declaradas;
+2. Comprovação da compatibilidade da evolução patrimonial em relação aos subsídios públicos percebidos.
 
 Data: ${new Date().toLocaleDateString('pt-BR')}
 Cidadão Fiscalizador`;
@@ -205,11 +171,6 @@ Cidadão Fiscalizador`;
     navigator.clipboard.writeText(txt);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  // Helper para link do Tribunal de Contas
-  const getTribunalContas = (uf) => {
-    return MAPA_TRIBUNAIS_CONTAS[uf] || { nome: "Tribunal de Contas da União (TCU)", url: "https://portal.tcu.gov.br/" };
   };
 
   return (
@@ -228,13 +189,13 @@ Cidadão Fiscalizador`;
                   Transparência 360°
                 </span>
               </div>
-              <p className="text-xs text-slate-500">Auditoria integrada de todas as esferas: Presidência, Governadores, Deputados, Prefeitos e Vereadores</p>
+              <p className="text-xs text-slate-500">Auditoria integrada: Presidência, Governadores, Deputados, Prefeitos e Vereadores</p>
             </div>
           </div>
 
           <div className="text-xs font-mono text-slate-500 flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-            Conexão: Supabase + API Câmara + Portais Oficiais
+            Dados Oficiais Nativos
           </div>
         </div>
       </header>
@@ -247,12 +208,11 @@ Cidadão Fiscalizador`;
               Pesquisar Políticos em Todas as Esferas
             </h1>
             <p className="text-sm text-slate-600">
-              Audite prefeitos, vereadores, governadores, deputados federais e a presidência com dados oficiais.
+              Consulte patrimônio declarado no TSE, doadores de campanha e notas fiscais de gabinetes.
             </p>
           </div>
 
           <form onSubmit={(e) => { e.preventDefault(); fetchAllData(); }} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-2">
-            {/* Input Nome */}
             <div className="relative">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -264,7 +224,6 @@ Cidadão Fiscalizador`;
               />
             </div>
 
-            {/* Cargo */}
             <select
               value={selectedCargo}
               onChange={(e) => setSelectedCargo(e.target.value)}
@@ -278,7 +237,6 @@ Cidadão Fiscalizador`;
               <option value="deputado_federal">Deputados Federais (Ao Vivo)</option>
             </select>
 
-            {/* Estado */}
             <select
               value={selectedUf}
               onChange={(e) => setSelectedUf(e.target.value)}
@@ -290,7 +248,6 @@ Cidadão Fiscalizador`;
               ))}
             </select>
 
-            {/* Botão */}
             <button
               type="submit"
               disabled={isLoading}
@@ -312,7 +269,7 @@ Cidadão Fiscalizador`;
         <div className="space-y-3">
           <div className="flex justify-between items-center text-xs text-slate-500 font-mono px-1">
             <span>Resultados: <strong>{politicians.length}</strong></span>
-            <span>Origem: Supabase (TSE) + API Federal</span>
+            <span>Bases: TSE + Câmara Federal</span>
           </div>
 
           {isLoading ? (
@@ -358,12 +315,17 @@ Cidadão Fiscalizador`;
                       </div>
                     </div>
 
-                    {pol.gastoAcumulado > 0 && (
+                    {pol.patrimonioTotal > 0 ? (
+                      <div className="p-2 bg-slate-50 rounded border border-slate-200 text-xs font-mono flex justify-between">
+                        <span className="text-slate-500">Bens no TSE:</span>
+                        <span className="font-bold text-emerald-700">{formatBRL(pol.patrimonioTotal)}</span>
+                      </div>
+                    ) : pol.gastoAcumulado > 0 ? (
                       <div className="p-2 bg-slate-50 rounded border border-slate-200 text-xs font-mono flex justify-between">
                         <span className="text-slate-500">Gasto Anual:</span>
                         <span className="font-bold text-slate-900">{formatBRL(pol.gastoAcumulado)}</span>
                       </div>
-                    )}
+                    ) : null}
                   </div>
 
                   <div className="pt-2 border-t border-slate-100 flex gap-2">
@@ -388,13 +350,13 @@ Cidadão Fiscalizador`;
         </div>
       </main>
 
-      {/* PAINEL LATERAL DE INSPEÇÃO COMPLETA */}
+      {/* PAINEL LATERAL DE INSPEÇÃO NATIVA */}
       {selectedPolitician && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex justify-end">
           <div className="w-full max-w-xl bg-white border-l border-slate-200 h-full overflow-y-auto p-6 space-y-6 shadow-2xl flex flex-col justify-between">
             <div className="space-y-5">
               
-              {/* CABEÇALHO DO PERFIL */}
+              {/* CABEÇALHO */}
               <div className="flex items-start justify-between border-b pb-4">
                 <div className="flex items-center gap-3">
                   <img 
@@ -410,7 +372,7 @@ Cidadão Fiscalizador`;
                     </p>
                     <p className="text-[11px] text-slate-600 font-mono mt-0.5">{selectedPolitician.municipio}</p>
                     <span className="inline-block mt-1 text-[10px] font-bold font-mono uppercase px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
-                      Situação: {selectedPolitician.situacao || "Eleito"} ({selectedPolitician.anoEleicao || 2024})
+                      Situação: {selectedPolitician.situacao} ({selectedPolitician.anoEleicao})
                     </span>
                   </div>
                 </div>
@@ -419,9 +381,8 @@ Cidadão Fiscalizador`;
                 </button>
               </div>
 
-              {/* ROTEAMENTO DE AUDITORIA POR CARGO */}
+              {/* ROTEAMENTO DE AUDITORIA */}
               {selectedPolitician.cargo === "Presidente" || selectedPolitician.cargo === "Vice-Presidente" ? (
-                /* CASO 1: PRESIDÊNCIA */
                 <div className="space-y-4">
                   <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-xs">
                     <h3 className="font-bold text-amber-950 text-sm">Estrutura de Gastos do Poder Executivo Federal</h3>
@@ -430,8 +391,8 @@ Cidadão Fiscalizador`;
                     </p>
                     <div className="pt-2 border-t border-amber-200 font-mono text-[11px] space-y-1">
                       <div>• <strong>Cartão de Pagamentos (CPGF):</strong> Gastos de custeio e apoio ao gabinete.</div>
-                      <div>• <strong>Diárias e Viagens Oficiais:</strong> Missões diplomáticas e roteiros de comitiva.</div>
-                      <div>• <strong>Aeronaves e Fretamento:</strong> Apoio operacional e de segurança da FAB.</div>
+                      <div>• <strong>Diárias e Viagens Oficiais:</strong> Missões diplomáticas e comitivas.</div>
+                      <div>• <strong>Aeronaves e Fretamento:</strong> Apoio operacional da FAB.</div>
                     </div>
                   </div>
 
@@ -445,7 +406,6 @@ Cidadão Fiscalizador`;
                       <ExternalLink className="w-4 h-4" />
                       Auditar Cartão Corporativo (CPGF) na CGU
                     </a>
-
                     <a
                       href="https://portaldatransparencia.gov.br/viagens"
                       target="_blank"
@@ -459,7 +419,7 @@ Cidadão Fiscalizador`;
                 </div>
 
               ) : selectedPolitician.cargo === "Deputado Federal" && !String(selectedPolitician.id).startsWith("supa-") ? (
-                /* CASO 2: DEPUTADOS FEDERAIS (API DA CÂMARA EM TEMPO REAL) */
+                /* DEPUTADO FEDERAL: NOTAS FISCAIS DA CÂMARA EM TEMPO REAL */
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
                     <h3 className="text-xs font-bold uppercase text-slate-500 font-mono">Últimas Notas Fiscais Registradas (CEAP):</h3>
@@ -469,7 +429,7 @@ Cidadão Fiscalizador`;
                       rel="noreferrer"
                       className="text-[11px] text-blue-600 hover:underline flex items-center gap-1 font-mono"
                     >
-                      Página Oficial <ExternalLink className="w-3 h-3" />
+                      Câmara Oficial <ExternalLink className="w-3 h-3" />
                     </a>
                   </div>
 
@@ -484,7 +444,7 @@ Cidadão Fiscalizador`;
                         rel="noreferrer"
                         className="text-blue-600 underline font-bold block"
                       >
-                        Clique aqui para ver a prestação completa no site da Câmara →
+                        Clique para ver a prestação completa na Câmara →
                       </a>
                     </div>
                   ) : (
@@ -508,95 +468,129 @@ Cidadão Fiscalizador`;
                 </div>
 
               ) : (
-                /* CASO 3: VEREADORES, PREFEITOS E GOVERNADORES (MUNICIPAL / ESTADUAL) */
+                /* VEREADORES, PREFEITOS E GOVERNADORES: DADOS AUDITÁVEIS NATIVOS */
                 <div className="space-y-4">
-                  {/* Card de Informações Financeiras */}
-                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-700 uppercase font-mono">Gasto / Verba Anual Estimada:</span>
-                      <span className="text-base font-extrabold font-mono text-slate-900">
-                        {selectedPolitician.gastoAcumulado > 0 ? formatBRL(selectedPolitician.gastoAcumulado) : "Sob prestação anual"}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500">
-                      Registro de custeio e subsídio referente a <strong>{selectedPolitician.municipio} - {selectedPolitician.siglaUf}</strong>.
-                    </p>
+                  
+                  {/* Seletor de Abas Internas */}
+                  <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs font-mono">
+                    <button
+                      onClick={() => setInspectorTab("bens")}
+                      className={`flex-1 py-1.5 rounded-md font-bold transition flex items-center justify-center gap-1 ${
+                        inspectorTab === "bens" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <Wallet className="w-3.5 h-3.5 text-emerald-600" />
+                      Bens no TSE ({selectedPolitician.bensDeclarados?.length || 0})
+                    </button>
+
+                    <button
+                      onClick={() => setInspectorTab("despesas")}
+                      className={`flex-1 py-1.5 rounded-md font-bold transition flex items-center justify-center gap-1 ${
+                        inspectorTab === "despesas" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <DollarSign className="w-3.5 h-3.5 text-blue-600" />
+                      Despesas / Cota
+                    </button>
+
+                    <button
+                      onClick={() => setInspectorTab("doadores")}
+                      className={`flex-1 py-1.5 rounded-md font-bold transition flex items-center justify-center gap-1 ${
+                        inspectorTab === "doadores" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <Award className="w-3.5 h-3.5 text-purple-600" />
+                      Campanha
+                    </button>
                   </div>
 
-                  {/* Links de Auditoria Oficial sem Google e sem Home Genérica */}
-                  <div className="space-y-2">
-                    <h4 className="text-xs font-bold uppercase text-slate-500 font-mono">Acesso Direto aos Órgãos de Controle:</h4>
-                    
-                    {/* Link 1: Ficha Oficial do TSE (DivulgaCand) */}
-                    <a
-                      href={selectedPolitician.linkTse || `https://divulgacandcontas.tse.jus.br/divulga/#/estados/${selectedPolitician.siglaUf}/municipios`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="w-full p-3 bg-white border border-slate-200 hover:border-emerald-500 rounded-lg text-xs font-semibold flex items-center justify-between group transition shadow-2xs"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <Award className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <div>
-                          <span className="text-slate-900 group-hover:text-emerald-700 font-bold block">
-                            {selectedPolitician.linkTse ? "Ficha Completa no TSE: Bens e Doadores" : "Consultar Candidatura no TSE (DivulgaCand)"}
-                          </span>
-                          <span className="text-[10px] text-slate-400 font-mono">
-                            Declaração de patrimônio, bens e receitas de campanha
-                          </span>
-                        </div>
+                  {/* ABA: BENS DECLARADOS NO TSE */}
+                  {inspectorTab === "bens" && (
+                    <div className="space-y-3">
+                      <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex justify-between items-center text-xs font-mono">
+                        <span className="text-emerald-900 font-bold">Patrimônio Declarado:</span>
+                        <span className="text-base font-extrabold text-emerald-950">
+                          {formatBRL(selectedPolitician.patrimonioTotal)}
+                        </span>
                       </div>
-                      <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 shrink-0" />
-                    </a>
 
-                    {/* Link 2: Portal da Transparência da Câmara/Prefeitura/Governo */}
-                    {selectedPolitician.linkTransparencia && (
-                      <a
-                        href={selectedPolitician.linkTransparencia}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="w-full p-3 bg-white border border-slate-200 hover:border-blue-500 rounded-lg text-xs font-semibold flex items-center justify-between group transition shadow-2xs"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <Building2 className="w-4 h-4 text-blue-600 shrink-0" />
-                          <div>
-                            <span className="text-slate-900 group-hover:text-blue-700 font-bold block">
-                              Portal da Transparência de {selectedPolitician.municipio || selectedPolitician.siglaUf}
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-mono">
-                              Folha de pagamento, contratos e verbas de gabinete
-                            </span>
+                      <div className="space-y-2">
+                        {selectedPolitician.bensDeclarados && selectedPolitician.bensDeclarados.length > 0 ? (
+                          selectedPolitician.bensDeclarados.map((bem, idx) => (
+                            <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1">
+                              <div className="flex justify-between font-bold text-slate-900">
+                                <span>{bem.item}</span>
+                                <span className="font-mono text-emerald-700">{formatBRL(bem.valor)}</span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 font-mono">{bem.detalhe}</p>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="p-4 bg-slate-50 border rounded-lg text-xs text-slate-500 text-center font-mono">
+                            Nenhum bem individual discriminado no registro da eleição.
                           </div>
-                        </div>
-                        <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 shrink-0" />
-                      </a>
-                    )}
-
-                    {/* Link 3: Tribunal de Contas Estadual Oficial (TCE / TCM) */}
-                    <a
-                      href={getTribunalContas(selectedPolitician.siglaUf).url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="w-full p-3 bg-white border border-slate-200 hover:border-blue-500 rounded-lg text-xs font-semibold flex items-center justify-between group transition shadow-2xs"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <Landmark className="w-4 h-4 text-slate-700 shrink-0" />
-                        <div>
-                          <span className="text-slate-900 group-hover:text-blue-700 font-bold block">
-                            {getTribunalContas(selectedPolitician.siglaUf).nome} (Fiscalização Oficial)
-                          </span>
-                          <span className="text-[10px] text-slate-400 font-mono">
-                            Auditoria externa de conformidade e julgamento de contas
-                          </span>
-                        </div>
+                        )}
                       </div>
-                      <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 shrink-0" />
-                    </a>
-                  </div>
+                    </div>
+                  )}
+
+                  {/* ABA: DESPESAS E CUSTEIO */}
+                  {inspectorTab === "despesas" && (
+                    <div className="space-y-3">
+                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex justify-between items-center text-xs font-mono">
+                        <span className="text-blue-900 font-bold">Verba Auditada:</span>
+                        <span className="text-base font-extrabold text-blue-950">
+                          {formatBRL(selectedPolitician.gastoAcumulado)}
+                        </span>
+                      </div>
+
+                      <div className="space-y-2">
+                        {selectedPolitician.despesasGabinete && selectedPolitician.despesasGabinete.length > 0 ? (
+                          selectedPolitician.despesasGabinete.map((desp, idx) => (
+                            <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1">
+                              <div className="flex justify-between font-bold text-slate-900">
+                                <span>{desp.fornecedor}</span>
+                                <span className="font-mono text-slate-900">{formatBRL(desp.valor)}</span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 font-mono">{desp.categoria} • {desp.data}</p>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="p-4 bg-slate-50 border rounded-lg text-xs text-slate-500 text-center font-mono">
+                            Prestação contábil anual consolidada em {selectedPolitician.municipio}.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ABA: DOADORES DE CAMPANHA */}
+                  {inspectorTab === "doadores" && (
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        {selectedPolitician.doadoresCampanha && selectedPolitician.doadoresCampanha.length > 0 ? (
+                          selectedPolitician.doadoresCampanha.map((doador, idx) => (
+                            <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1">
+                              <div className="flex justify-between font-bold text-slate-900">
+                                <span>{doador.doador}</span>
+                                <span className="font-mono text-purple-700">{formatBRL(doador.valor)}</span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 font-mono">Tipo: {doador.tipo}</p>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="p-4 bg-slate-50 border rounded-lg text-xs text-slate-500 text-center font-mono">
+                            Sem doadores declarados além da dotação padrão do fundo partidário.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Gerador de Cobrança Formal */}
                   <button
                     onClick={() => openPetitionModal(selectedPolitician)}
-                    className="w-full py-2.5 px-3 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold font-mono transition flex items-center justify-center gap-2 shadow-xs mt-2"
+                    className="w-full py-2.5 px-3 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold font-mono transition flex items-center justify-center gap-2 shadow-xs mt-3"
                   >
                     <Mail className="w-4 h-4" />
                     Gerar Notificação LAI / Cobrar Transparência
