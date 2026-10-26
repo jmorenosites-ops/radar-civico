@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Search, Scale, Filter, Users, Eye, Mail, Copy, 
   CheckCircle2, X, AlertTriangle, ExternalLink, Loader2, 
-  MapPin, Building2, Landmark, RefreshCw, FileText, ChevronRight,
-  TrendingUp, Award, DollarSign
+  MapPin, Building2, Landmark, RefreshCw, FileText,
+  Award, DollarSign, ShieldCheck
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 
@@ -12,6 +12,37 @@ const ESTADOS_BRASIL = [
   "MG", "MS", "MT", "PA", "PB", "PE", "PI", "PR", "RJ", "RN", 
   "RO", "RR", "RS", "SC", "SE", "SP", "TO"
 ];
+
+// Mapeamento oficial dos Tribunais de Contas por Estado (TCE/TCM)
+const MAPA_TRIBUNAIS_CONTAS = {
+  SP: { nome: "TCE-SP / TCM-SP", url: "https://www.tcesp.tc.br/" },
+  RJ: { nome: "TCE-RJ / TCM-Rio", url: "https://www.tcerj.tc.br/" },
+  MG: { nome: "TCE-MG", url: "https://www.tce.mg.gov.br/" },
+  RS: { nome: "TCE-RS", url: "https://portal.tce.rs.gov.br/" },
+  PR: { nome: "TCE-PR", url: "https://www.tce.pr.gov.br/" },
+  SC: { nome: "TCE-SC", url: "https://www.tcesc.tc.br/" },
+  BA: { nome: "TCE-BA / TCM-BA", url: "https://www.tce.ba.gov.br/" },
+  PE: { nome: "TCE-PE", url: "https://www.tce.pe.gov.br/" },
+  CE: { nome: "TCE-CE", url: "https://www.tce.ce.gov.br/" },
+  GO: { nome: "TCE-GO / TCM-GO", url: "https://www.tce.go.gov.br/" },
+  DF: { nome: "TCDF (Distrito Federal)", url: "https://www.tc.df.gov.br/" },
+  ES: { nome: "TCE-ES", url: "https://www.tcees.tc.br/" },
+  MT: { nome: "TCE-MT", url: "https://www.tce.mt.gov.br/" },
+  MS: { nome: "TCE-MS", url: "https://www.tce.ms.gov.br/" },
+  PA: { nome: "TCE-PA / TCM-PA", url: "https://www.tcepa.tc.br/" },
+  AM: { nome: "TCE-AM", url: "https://www.tce.am.gov.br/" },
+  MA: { nome: "TCE-MA", url: "https://www.tce.ma.gov.br/" },
+  PB: { nome: "TCE-PB", url: "https://tce.pb.gov.br/" },
+  RN: { nome: "TCE-RN", url: "https://www.tce.rn.gov.br/" },
+  AL: { nome: "TCE-AL", url: "https://www.tceal.tc.br/" },
+  PI: { nome: "TCE-PI", url: "https://www.tcepi.tc.br/" },
+  SE: { nome: "TCE-SE", url: "https://www.tce.se.gov.br/" },
+  RO: { nome: "TCE-RO", url: "https://tcero.tc.br/" },
+  TO: { nome: "TCE-TO", url: "https://www.tceto.tc.br/" },
+  AC: { nome: "TCE-AC", url: "https://www.tceac.tc.br/" },
+  AP: { nome: "TCE-AP", url: "https://www.tce.ap.gov.br/" },
+  RR: { nome: "TCE-RR", url: "https://www.tcerr.tc.br/" }
+};
 
 export default function App() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -37,7 +68,7 @@ export default function App() {
     let results = [];
 
     try {
-      // 1. Busca no Supabase (Municipal, Estadual e Presidência)
+      // 1. Busca no Supabase
       if (selectedCargo !== "deputado_federal") {
         let query = supabase.from('politicos').select('*');
 
@@ -67,7 +98,9 @@ export default function App() {
             situacao: p.situacao || "Eleito",
             urlFoto: p.foto_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
             origem: "Supabase (TSE)",
-            gastoAcumulado: Number(p.gasto_acumulado) || 0
+            gastoAcumulado: Number(p.gasto_acumulado) || 0,
+            linkTse: p.link_tse,
+            linkTransparencia: p.link_transparencia
           }));
           results = [...results, ...formattedSupa];
         }
@@ -97,7 +130,9 @@ export default function App() {
             anoEleicao: 2022,
             situacao: "Em Exercício",
             origem: "Câmara Federal (API Ao Vivo)",
-            gastoAcumulado: 0
+            gastoAcumulado: 0,
+            linkTse: `https://dadosabertos.camara.leg.br/api/v2/deputados/${d.id}`,
+            linkTransparencia: `https://www.camara.leg.br/deputados/${d.id}`
           }));
           results = [...results, ...formattedCamara];
         }
@@ -115,7 +150,7 @@ export default function App() {
     fetchAllData();
   }, [fetchAllData]);
 
-  // Carrega despesas ao vivo para deputados federais com busca abrangente
+  // Carrega despesas ao vivo para deputados federais
   const inspectPolitician = async (pol) => {
     setSelectedPolitician(pol);
     setIsLoadingExpenses(true);
@@ -125,7 +160,6 @@ export default function App() {
 
     if (isFederalCamara) {
       try {
-        // Tenta buscar as despesas mais recentes registradas na CEAP
         const res = await fetch(
           `https://dadosabertos.camara.leg.br/api/v2/deputados/${pol.rawId}/despesas?ordem=DESC&ordenarPor=dataDocumento&itens=25`,
           { headers: { Accept: "application/json" } }
@@ -173,6 +207,11 @@ Cidadão Fiscalizador`;
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Helper para link do Tribunal de Contas
+  const getTribunalContas = (uf) => {
+    return MAPA_TRIBUNAIS_CONTAS[uf] || { nome: "Tribunal de Contas da União (TCU)", url: "https://portal.tcu.gov.br/" };
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased">
       {/* HEADER */}
@@ -195,7 +234,7 @@ Cidadão Fiscalizador`;
 
           <div className="text-xs font-mono text-slate-500 flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-            Conexão: Supabase + API Câmara + TSE
+            Conexão: Supabase + API Câmara + Portais Oficiais
           </div>
         </div>
       </header>
@@ -208,7 +247,7 @@ Cidadão Fiscalizador`;
               Pesquisar Políticos em Todas as Esferas
             </h1>
             <p className="text-sm text-slate-600">
-              Audite prefeitos, vereadores, governadores, deputados federais e a presidência.
+              Audite prefeitos, vereadores, governadores, deputados federais e a presidência com dados oficiais.
             </p>
           </div>
 
@@ -387,7 +426,7 @@ Cidadão Fiscalizador`;
                   <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-xs">
                     <h3 className="font-bold text-amber-950 text-sm">Estrutura de Gastos do Poder Executivo Federal</h3>
                     <p className="text-amber-900 leading-relaxed">
-                      Os gastos da Chefia do Executivo não utilizam cota parlamentar (CEAP), sendo fiscalizados diretamente pelo <strong>TCU</strong> e controlados pelo <strong>Portal da Transparência (CGU) / SIAFI</strong>.
+                      Os gastos da Presidência da República não utilizam cota parlamentar (CEAP), sendo fiscalizados diretamente pelo <strong>TCU</strong> e controlados pelo <strong>Portal da Transparência (CGU) / SIAFI</strong>.
                     </p>
                     <div className="pt-2 border-t border-amber-200 font-mono text-[11px] space-y-1">
                       <div>• <strong>Cartão de Pagamentos (CPGF):</strong> Gastos de custeio e apoio ao gabinete.</div>
@@ -474,52 +513,83 @@ Cidadão Fiscalizador`;
                   {/* Card de Informações Financeiras */}
                   <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-700 uppercase font-mono">Custo / Gasto Registrado:</span>
+                      <span className="text-xs font-bold text-slate-700 uppercase font-mono">Gasto / Verba Anual Estimada:</span>
                       <span className="text-base font-extrabold font-mono text-slate-900">
-                        {selectedPolitician.gastoAcumulado > 0 ? formatBRL(selectedPolitician.gastoAcumulado) : "Sob prestação"}
+                        {selectedPolitician.gastoAcumulado > 0 ? formatBRL(selectedPolitician.gastoAcumulado) : "Sob prestação anual"}
                       </span>
                     </div>
                     <p className="text-xs text-slate-500">
-                      Valores obtidos através da prestação anual de contas eleitorais no TSE e portais de transparência de {selectedPolitician.municipio}.
+                      Registro de custeio e subsídio referente a <strong>{selectedPolitician.municipio} - {selectedPolitician.siglaUf}</strong>.
                     </p>
                   </div>
 
-                  {/* Links de Auditoria Oficial dos Órgãos de Controle */}
+                  {/* Links de Auditoria Oficial sem Google e sem Home Genérica */}
                   <div className="space-y-2">
-                    <h4 className="text-xs font-bold uppercase text-slate-500 font-mono">Bases de Auditoria Oficial:</h4>
+                    <h4 className="text-xs font-bold uppercase text-slate-500 font-mono">Acesso Direto aos Órgãos de Controle:</h4>
                     
-                    {/* Link TSE DivulgaCand */}
+                    {/* Link 1: Ficha Oficial do TSE (DivulgaCand) */}
                     <a
-                      href="https://divulgacandcontas.tse.jus.br"
+                      href={selectedPolitician.linkTse || `https://divulgacandcontas.tse.jus.br/divulga/#/estados/${selectedPolitician.siglaUf}/municipios`}
                       target="_blank"
                       rel="noreferrer"
-                      className="w-full p-3 bg-white border border-slate-200 hover:border-blue-500 rounded-lg text-xs font-semibold flex items-center justify-between group transition shadow-2xs"
+                      className="w-full p-3 bg-white border border-slate-200 hover:border-emerald-500 rounded-lg text-xs font-semibold flex items-center justify-between group transition shadow-2xs"
                     >
-                      <div className="flex items-center gap-2">
-                        <Award className="w-4 h-4 text-emerald-600" />
+                      <div className="flex items-center gap-2.5">
+                        <Award className="w-4 h-4 text-emerald-600 shrink-0" />
                         <div>
-                          <span className="text-slate-900 group-hover:text-blue-700 block">Declaração de Bens e Doadores (TSE)</span>
-                          <span className="text-[10px] text-slate-400 font-mono">DivulgaCandContas oficial</span>
+                          <span className="text-slate-900 group-hover:text-emerald-700 font-bold block">
+                            {selectedPolitician.linkTse ? "Ficha Completa no TSE: Bens e Doadores" : "Consultar Candidatura no TSE (DivulgaCand)"}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            Declaração de patrimônio, bens e receitas de campanha
+                          </span>
                         </div>
                       </div>
-                      <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600" />
+                      <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 shrink-0" />
                     </a>
 
-                    {/* Link Tribunal de Contas */}
+                    {/* Link 2: Portal da Transparência da Câmara/Prefeitura/Governo */}
+                    {selectedPolitician.linkTransparencia && (
+                      <a
+                        href={selectedPolitician.linkTransparencia}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-full p-3 bg-white border border-slate-200 hover:border-blue-500 rounded-lg text-xs font-semibold flex items-center justify-between group transition shadow-2xs"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Building2 className="w-4 h-4 text-blue-600 shrink-0" />
+                          <div>
+                            <span className="text-slate-900 group-hover:text-blue-700 font-bold block">
+                              Portal da Transparência de {selectedPolitician.municipio || selectedPolitician.siglaUf}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              Folha de pagamento, contratos e verbas de gabinete
+                            </span>
+                          </div>
+                        </div>
+                        <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 shrink-0" />
+                      </a>
+                    )}
+
+                    {/* Link 3: Tribunal de Contas Estadual Oficial (TCE / TCM) */}
                     <a
-                      href={`https://www.google.com/search?q=tribunal+de+contas+prestacao+contas+${encodeURIComponent(selectedPolitician.nome)}+${encodeURIComponent(selectedPolitician.municipio || '')}`}
+                      href={getTribunalContas(selectedPolitician.siglaUf).url}
                       target="_blank"
                       rel="noreferrer"
                       className="w-full p-3 bg-white border border-slate-200 hover:border-blue-500 rounded-lg text-xs font-semibold flex items-center justify-between group transition shadow-2xs"
                     >
-                      <div className="flex items-center gap-2">
-                        <Landmark className="w-4 h-4 text-blue-600" />
+                      <div className="flex items-center gap-2.5">
+                        <Landmark className="w-4 h-4 text-slate-700 shrink-0" />
                         <div>
-                          <span className="text-slate-900 group-hover:text-blue-700 block">Fiscalização no Tribunal de Contas (TCE/TCM)</span>
-                          <span className="text-[10px] text-slate-400 font-mono">Auditoria de conformidade e contas anuais</span>
+                          <span className="text-slate-900 group-hover:text-blue-700 font-bold block">
+                            {getTribunalContas(selectedPolitician.siglaUf).nome} (Fiscalização Oficial)
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            Auditoria externa de conformidade e julgamento de contas
+                          </span>
                         </div>
                       </div>
-                      <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600" />
+                      <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 shrink-0" />
                     </a>
                   </div>
 
