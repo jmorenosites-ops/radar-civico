@@ -29,14 +29,14 @@ export default function App() {
 
   const formatBRL = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
-  // Consulta híbrida: Supabase (Vereadores, Prefeitos, Gov) + API Câmara (Federais)
+  // Consulta híbrida: Supabase (Presidente, Vereadores, Prefeitos, Gov) + API Câmara (Federais)
   const fetchAllData = useCallback(async () => {
     setIsLoading(true);
     setErrorMsg(null);
     let results = [];
 
     try {
-      // 1. Busca no Supabase (Municipal e Estadual)
+      // 1. Busca no Supabase (Executivo Federal, Municipal e Estadual)
       if (selectedCargo !== "deputado_federal") {
         let query = supabase.from('politicos').select('*');
 
@@ -62,7 +62,7 @@ export default function App() {
             esfera: p.esfera,
             municipio: p.municipio,
             urlFoto: p.foto_url || "https://via.placeholder.com/150",
-            origem: "Supabase (TSE)",
+            origem: "Supabase",
             gastoAcumulado: p.gasto_acumulado
           }));
           results = [...results, ...formattedSupa];
@@ -175,7 +175,7 @@ Cidadão Fiscalizador`;
                   Supabase + APIs Oficiais
                 </span>
               </div>
-              <p className="text-xs text-slate-500">Auditoria integrada de Vereadores, Prefeitos, Deputados e Governadores</p>
+              <p className="text-xs text-slate-500">Auditoria integrada: Presidência, Governadores, Deputados, Prefeitos e Vereadores</p>
             </div>
           </div>
 
@@ -194,7 +194,7 @@ Cidadão Fiscalizador`;
               Pesquisar Políticos em Todas as Esferas
             </h1>
             <p className="text-sm text-slate-600">
-              Filtre por cargo (Vereador, Prefeito, Governador, Deputado), estado ou digite o nome para auditar.
+              Filtre por cargo (Presidente, Governador, Prefeito, Vereador ou Deputado), estado ou digite o nome para auditar.
             </p>
           </div>
 
@@ -218,9 +218,10 @@ Cidadão Fiscalizador`;
               className="bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:bg-white focus:outline-none focus:border-blue-600"
             >
               <option value="todos">Todos os Cargos</option>
-              <option value="Vereador">Vereadores</option>
-              <option value="Prefeito">Prefeitos</option>
+              <option value="Presidente">Presidência da República</option>
               <option value="Governador">Governadores</option>
+              <option value="Prefeito">Prefeitos</option>
+              <option value="Vereador">Vereadores</option>
               <option value="deputado_federal">Deputados Federais (Ao Vivo)</option>
             </select>
 
@@ -355,7 +356,32 @@ Cidadão Fiscalizador`;
                 </button>
               </div>
 
-              {selectedPolitician.esfera === "Federal" ? (
+              {/* ROTEAMENTO DE AUDITORIA POR CARGO/ESFERA */}
+              {selectedPolitician.cargo === "Presidente" || selectedPolitician.cargo === "Vice-Presidente" ? (
+                <div className="space-y-4">
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-xs">
+                    <h3 className="font-bold text-amber-950 text-sm">Estrutura de Gastos do Poder Executivo Federal</h3>
+                    <p className="text-amber-900 leading-relaxed">
+                      Os gastos da Chefia de Estado e de Governo não utilizam a cota parlamentar (CEAP), sendo fiscalizados diretamente pelo <strong>TCU</strong> e controlados pelo <strong>Portal da Transparência (CGU) / SIAFI</strong>.
+                    </p>
+                    <div className="pt-2 border-t border-amber-200 font-mono text-[11px] space-y-1">
+                      <div>• <strong>Cartão de Pagamentos (CPGF):</strong> Gastos de custeio e apoio ao gabinete.</div>
+                      <div>• <strong>Diárias e Passagens:</strong> Missões diplomáticas e viagens domésticas.</div>
+                      <div>• <strong>Apoio Logístico FAB:</strong> Fretamentos e deslocamentos em aeronaves oficiais.</div>
+                    </div>
+                  </div>
+
+                  <a
+                    href="https://portaldatransparencia.gov.br/orgaos/20000-presidencia-da-republica"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-full py-2.5 px-3 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold font-mono transition flex items-center justify-center gap-2 shadow-xs"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Auditar Notas e Cartão Corporativo na CGU
+                  </a>
+                </div>
+              ) : selectedPolitician.esfera === "Federal" ? (
                 <div className="space-y-3">
                   <h3 className="text-xs font-bold uppercase text-slate-500 font-mono">Últimas Notas Fiscais (Cota CEAP):</h3>
                   {isLoadingExpenses ? (
