@@ -371,15 +371,27 @@ Cidadão Fiscalizador`;
                     </div>
                   </div>
 
-                  <a
-                    href="https://portaldatransparencia.gov.br/orgaos/20000-presidencia-da-republica"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="w-full py-2.5 px-3 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold font-mono transition flex items-center justify-center gap-2 shadow-xs"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                    Auditar Notas e Cartão Corporativo na CGU
-                  </a>
+<div className="space-y-2 pt-2">
+  <a
+    href="https://portaldatransparencia.gov.br/cartoes"
+    target="_blank"
+    rel="noreferrer"
+    className="w-full py-2.5 px-3 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold font-mono transition flex items-center justify-center gap-2 shadow-xs"
+  >
+    <ExternalLink className="w-4 h-4" />
+    Consultar Cartões de Pagamento (CPGF)
+  </a>
+
+  <a
+    href="https://portaldatransparencia.gov.br/viagens"
+    target="_blank"
+    rel="noreferrer"
+    className="w-full py-2.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold font-mono transition flex items-center justify-center gap-2 border border-slate-300"
+  >
+    <ExternalLink className="w-4 h-4" />
+    Painel de Viagens e Diárias Oficiais
+  </a>
+</div>
                 </div>
               ) : selectedPolitician.esfera === "Federal" ? (
                 <div className="space-y-3">
