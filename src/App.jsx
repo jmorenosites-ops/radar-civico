@@ -641,7 +641,7 @@ Data: ${new Date().toLocaleDateString('pt-BR')}`;
       {/* FOOTER */}
       <footer className="border-t border-slate-200 mt-12 py-6 text-xs text-slate-500 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          Radar Cívico • Transparência Unificada (Supabase + Dados Abertos Governamentais)
+          Criado por um neurodivergente brasileiro
         </div>
       </footer>
     </div>
