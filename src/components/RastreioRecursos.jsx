@@ -34,6 +34,7 @@ export default function RastreioRecursos() {
   const [erro, setErro] = useState(null);
   const [busca, setBusca] = useState('');
   const [uf, setUf] = useState('');
+  const [esfera, setEsfera] = useState('');
   const [ano, setAno] = useState('mais_recente');
   const [area, setArea] = useState('');
 
@@ -42,7 +43,7 @@ export default function RastreioRecursos() {
     const carregar = async () => {
       const { data, error } = await supabase
         .from('rastreio_recursos')
-        .select('id,titulo,descricao,area,uf,municipio,orgao_origem,orgao_destino,ano_referencia,identificador_oficial,valor_anunciado,valor_previsto_repasse,valor_transferido,valor_autorizado,valor_empenhado,valor_liquidado,valor_pago,motivo_diferenca,situacao,fonte_url,fonte_atualizada_em,origem_base')
+        .select('id,titulo,descricao,area,uf,municipio,orgao_origem,orgao_destino,ano_referencia,identificador_oficial,valor_anunciado,valor_previsto_repasse,valor_transferido,valor_autorizado,valor_empenhado,valor_liquidado,valor_pago,motivo_diferenca,situacao,fonte_url,fonte_atualizada_em,origem_base,esfera')
         .order('fonte_atualizada_em', { ascending: false, nullsFirst: false })
         .limit(300);
       if (!ativo) return;
@@ -84,6 +85,7 @@ export default function RastreioRecursos() {
     const q = busca.trim().toLocaleLowerCase('pt-BR');
     return registros.filter(r => {
       if (uf && r.uf !== uf) return false;
+      if (esfera && r.esfera !== esfera) return false;
       if (anoAtivo && Number(r.ano_referencia) !== anoAtivo) return false;
       if (area && r.area !== area) return false;
       if (!q) return true;
@@ -91,12 +93,13 @@ export default function RastreioRecursos() {
         r.orgao_destino, r.identificador_oficial].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR');
       return texto.includes(q);
     }).sort((a,b) => Number(b.ano_referencia || 0) - Number(a.ano_referencia || 0) || Number(b.valor_liquidado || 0) - Number(a.valor_liquidado || 0));
-  }, [registros, busca, uf, area, anoAtivo]);
+  }, [registros, busca, uf, esfera, area, anoAtivo]);
 
   const ufs = [...new Set(registros.map(r => r.uf).filter(Boolean))].sort();
   const areas = [...new Set(registros.map(r => r.area).filter(Boolean))].sort();
 
-  const piloto = registros.filter(r => r.origem_base === 'SICONFI-RREO-Anexo02' && r.municipio === 'São Paulo' && r.ano_referencia === anoAtivo);
+  const escopoDestaque = esfera === 'Estadual' ? 'Estadual' : 'Municipal';
+  const piloto = registros.filter(r => r.origem_base === 'SICONFI-RREO-Anexo02' && r.esfera === escopoDestaque && r.ano_referencia === anoAtivo);
   const principal = ['Educação', 'Saúde'].map(nome => piloto.find(r => r.area === nome)).filter(Boolean);
 
   const comparacao = registro => {
@@ -130,7 +133,7 @@ export default function RastreioRecursos() {
       {principal.length > 0 && (
         <div className="border border-slate-200 rounded-xl bg-slate-50 p-4 space-y-3">
           <div>
-            <h3 className="font-bold text-sm text-slate-900">Primeira base integrada: São Paulo (município) · {anoAtivo}</h3>
+            <h3 className="font-bold text-sm text-slate-900">Primeira base integrada: {escopoDestaque === 'Estadual' ? 'Governo do Estado de São Paulo' : 'Município de São Paulo'} · {anoAtivo}</h3>
             <p className="text-xs text-slate-600 mt-1">Tesouro Nacional / SICONFI · {principal[0]?.situacao}. Dados acumulados no período, não pagamentos finais nem promessas eleitorais.</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -146,7 +149,7 @@ export default function RastreioRecursos() {
           <p className="text-xs text-slate-600">As áreas abaixo podem ser comparadas individualmente. Nenhum valor é atribuído a um político nem tratado como pagamento sem a fonte correspondente.</p>
         </div>
       )}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
         <label className="relative">
           <span className="sr-only">Pesquisar recurso</span>
           <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
@@ -168,6 +171,15 @@ export default function RastreioRecursos() {
             className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm">
             <option value="">Todas as UFs</option>
             {ufs.map(item => <option key={item} value={item}>{item}</option>)}
+          </select>
+        </label>
+        <label>
+          <span className="sr-only">Esfera de governo</span>
+          <select value={esfera} onChange={e => setEsfera(e.target.value)}
+            className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm">
+            <option value="">Estado e município</option>
+            <option value="Estadual">Governo estadual</option>
+            <option value="Municipal">Governo municipal</option>
           </select>
         </label>
         <label>
