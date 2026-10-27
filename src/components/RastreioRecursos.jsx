@@ -33,6 +33,7 @@ export default function RastreioRecursos() {
   const [carregandoMovimentos, setCarregandoMovimentos] = useState(false);
   const [erro, setErro] = useState(null);
   const [busca, setBusca] = useState('');
+  const [visiveis, setVisiveis] = useState(20);
   const [uf, setUf] = useState('');
   const [esfera, setEsfera] = useState('');
   const [ano, setAno] = useState('mais_recente');
@@ -97,6 +98,8 @@ export default function RastreioRecursos() {
       return texto.includes(q);
     }).sort((a,b) => Number(b.ano_referencia || 0) - Number(a.ano_referencia || 0) || Number(b.valor_liquidado || 0) - Number(a.valor_liquidado || 0));
   }, [registros, busca, uf, esfera, area, anoAtivo]);
+
+  useEffect(() => { setVisiveis(20); }, [busca, uf, esfera, area, ano]);
 
   const ufs = [...new Set(registros.map(r => r.uf).filter(Boolean))].sort();
   const areas = [...new Set(registros.map(r => r.area).filter(Boolean))].sort();
@@ -229,8 +232,8 @@ export default function RastreioRecursos() {
         </div>
       ) : (
         <div className="space-y-3">
-          <p className="text-xs text-slate-500">{filtrados.length} fluxos documentados encontrados nesta consulta.</p>
-          {filtrados.map(r => {
+          <p className="text-xs text-slate-500">{filtrados.length} fluxos documentados encontrados. Exibindo {Math.min(visiveis, filtrados.length)}.</p>
+          {filtrados.slice(0, visiveis).map(r => {
             const info = comparacao(r);
             const escolhido = selecionado?.id === r.id;
             return (
@@ -337,6 +340,12 @@ export default function RastreioRecursos() {
               </article>
             );
           })}
+          {filtrados.length > visiveis && (
+            <button type="button" onClick={() => setVisiveis(v => v + 20)}
+              className="w-full rounded-lg border border-blue-200 bg-blue-50 py-3 text-sm font-semibold text-blue-800 hover:bg-blue-100">
+              Mostrar mais resultados ({Math.min(20, filtrados.length - visiveis)} próximos)
+            </button>
+          )}
         </div>
       )}
       <p className="text-[11px] text-slate-500">
