@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowRight, ExternalLink, FileSearch, Loader2, Search } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import ReceitasPublicas from './ReceitasPublicas';
@@ -33,6 +33,7 @@ export default function RastreioRecursos() {
   const [carregando, setCarregando] = useState(true);
   const [carregandoMovimentos, setCarregandoMovimentos] = useState(false);
   const [erro, setErro] = useState(null);
+  const [erroMovimentos, setErroMovimentos] = useState(null);
   const [busca, setBusca] = useState('');
   const [visiveis, setVisiveis] = useState(20);
   const [uf, setUf] = useState('');
@@ -61,13 +62,8 @@ export default function RastreioRecursos() {
   }, []);
 
   useEffect(() => {
-    if (!selecionado) {
-      setMovimentos([]);
-      return;
-    }
+    if (!selecionado) return;
     let ativo = true;
-    setMovimentos([]);
-    setCarregandoMovimentos(true);
     const carregar = async () => {
       const { data, error } = await supabase
         .from('rastreio_movimentos')
@@ -77,6 +73,7 @@ export default function RastreioRecursos() {
         .limit(200);
       if (!ativo) return;
       setMovimentos(error ? [] : (data || []));
+      setErroMovimentos(error ? 'Não foi possível consultar os movimentos. Tente abrir os detalhes novamente.' : null);
       setCarregandoMovimentos(false);
     };
     carregar();
@@ -86,7 +83,7 @@ export default function RastreioRecursos() {
   const anos = [...new Set(registros.map(r => r.ano_referencia).filter(Boolean))].sort((a,b) => b-a);
   const anoAtivo = ano === 'mais_recente' ? anos[0] : Number(ano);
 
-  const filtrados = useMemo(() => {
+  const filtrados = (() => {
     const q = busca.trim().toLocaleLowerCase('pt-BR');
     return registros.filter(r => {
       if (uf && r.uf !== uf) return false;
@@ -98,9 +95,7 @@ export default function RastreioRecursos() {
         r.orgao_destino, r.identificador_oficial].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR');
       return texto.includes(q);
     }).sort((a,b) => Number(b.ano_referencia || 0) - Number(a.ano_referencia || 0) || Number(b.valor_liquidado || 0) - Number(a.valor_liquidado || 0));
-  }, [registros, busca, uf, esfera, area, anoAtivo]);
-
-  useEffect(() => { setVisiveis(20); }, [busca, uf, esfera, area, ano]);
+  })();
 
   const ufs = [...new Set(registros.map(r => r.uf).filter(Boolean))].sort();
   const areas = [...new Set(registros.map(r => r.area).filter(Boolean))].sort();
@@ -180,13 +175,13 @@ export default function RastreioRecursos() {
         <label className="relative">
           <span className="sr-only">Pesquisar recurso</span>
           <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
-          <input value={busca} onChange={e => setBusca(e.target.value)}
+          <input value={busca} onChange={e => {setBusca(e.target.value);setVisiveis(20);}}
             placeholder="Programa, município, órgão..."
             className="w-full rounded-lg border border-slate-300 bg-slate-50 px-9 py-2.5 text-sm" />
         </label>
         <label>
           <span className="sr-only">Exercício</span>
-          <select value={ano} onChange={e => setAno(e.target.value)}
+          <select value={ano} onChange={e => {setAno(e.target.value);setVisiveis(20);}}
             className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm">
             <option value="mais_recente">Exercício mais recente</option>
             {anos.map(a => <option key={a} value={String(a)}>{a}</option>)}
@@ -194,7 +189,7 @@ export default function RastreioRecursos() {
         </label>
         <label>
           <span className="sr-only">Estado</span>
-          <select value={uf} onChange={e => setUf(e.target.value)}
+          <select value={uf} onChange={e => {setUf(e.target.value);setVisiveis(20);}}
             className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm">
             <option value="">Todas as UFs</option>
             {ufs.map(item => <option key={item} value={item}>{item}</option>)}
@@ -202,7 +197,7 @@ export default function RastreioRecursos() {
         </label>
         <label>
           <span className="sr-only">Esfera de governo</span>
-          <select value={esfera} onChange={e => setEsfera(e.target.value)}
+          <select value={esfera} onChange={e => {setEsfera(e.target.value);setVisiveis(20);}}
             className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm">
             <option value="">Estado e município</option>
             <option value="Estadual">Governo estadual</option>
@@ -212,7 +207,7 @@ export default function RastreioRecursos() {
         </label>
         <label>
           <span className="sr-only">Área</span>
-          <select value={area} onChange={e => setArea(e.target.value)}
+          <select value={area} onChange={e => {setArea(e.target.value);setVisiveis(20);}}
             className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm">
             <option value="">Todas as áreas</option>
             {areas.map(item => <option key={item} value={item}>{item}</option>)}
@@ -307,7 +302,7 @@ export default function RastreioRecursos() {
                   )}
                   <span className="text-slate-500">Consulta registrada: {dataBR(r.fonte_atualizada_em)}</span>
                   <button type="button" className="text-blue-700 font-semibold underline"
-                    onClick={() => setSelecionado(escolhido ? null : r)}>
+                    onClick={() => {setMovimentos([]);setErroMovimentos(null);setCarregandoMovimentos(!escolhido);setSelecionado(escolhido ? null : r);}}>
                     {escolhido ? 'Ocultar detalhes' : 'Detalhes e comprovantes'}
                   </button>
                 </div>
@@ -316,7 +311,7 @@ export default function RastreioRecursos() {
                     <h4 className="font-semibold text-xs">Movimentos individualizados com comprovantes</h4>
                     {carregandoMovimentos ? (
                       <p className="text-xs text-slate-600">Carregando...</p>
-                    ) : movimentos.length === 0 ? (
+                    ) : erroMovimentos ? <p role="alert" className="text-xs text-amber-900">{erroMovimentos}</p> : movimentos.length === 0 ? (
                       <p className="text-xs text-slate-600">
                         Este registro não possui pagamentos individuais vinculados nesta base.
                         Para identificar fornecedores e documentos de pagamento, é necessária outra fonte oficial com esse detalhamento.

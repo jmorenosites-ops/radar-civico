@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
-  Search, Scale, Filter, Users, Eye, Mail, Copy, 
-  CheckCircle2, X, AlertTriangle, ExternalLink, Loader2, 
-  Building2, Landmark, RefreshCw, FileText,
-  Award, DollarSign, Wallet, ShieldAlert, ArrowUpRight
+  Search, Scale, Users, Eye, Mail, Copy,
+  X, AlertTriangle, ExternalLink, Loader2,
+  Award, DollarSign, Wallet
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import Compromissos from './components/Compromissos';
 import RastreioRecursos from './components/RastreioRecursos';
+import TransferenciasOficiais from './components/TransferenciasOficiais';
 
 const ESTADOS_BRASIL = [
   "AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", 
@@ -119,7 +119,7 @@ export default function App() {
       }
 
       setPoliticians(results);
-    } catch (err) {
+    } catch {
       setErrorMsg("Ocorreu uma falha ao sincronizar as bases de dados.");
     } finally {
       setIsLoading(false);
@@ -127,7 +127,9 @@ export default function App() {
   }, [searchTerm, selectedUf, selectedCargo]);
 
   useEffect(() => {
-    if (activeSection === "politicos") fetchAllData();
+    if (activeSection !== "politicos") return;
+    const timer = setTimeout(fetchAllData, 250);
+    return () => clearTimeout(timer);
   }, [activeSection, fetchAllData]);
 
   // Carrega despesas da câmara ou usa as do Supabase
@@ -241,8 +243,9 @@ Data: ${new Date().toLocaleDateString('pt-BR')}`;
 
       {/* RASTREABILIDADE DO DINHEIRO PÚBLICO */}
       {activeSection === "dinheiro" && (
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8" id="conteudo-principal">
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6" id="conteudo-principal">
           <RastreioRecursos />
+          <TransferenciasOficiais />
         </main>
       )}
 
