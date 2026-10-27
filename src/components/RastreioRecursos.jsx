@@ -44,8 +44,11 @@ export default function RastreioRecursos() {
       const { data, error } = await supabase
         .from('rastreio_recursos')
         .select('id,titulo,descricao,area,uf,municipio,orgao_origem,orgao_destino,ano_referencia,identificador_oficial,valor_anunciado,valor_previsto_repasse,valor_transferido,valor_autorizado,valor_empenhado,valor_liquidado,valor_pago,motivo_diferenca,situacao,fonte_url,fonte_atualizada_em,origem_base,esfera')
-        .order('fonte_atualizada_em', { ascending: false, nullsFirst: false })
-        .limit(300);
+        .order('ano_referencia', { ascending: false })
+        .order('uf', { ascending: true })
+        .order('esfera', { ascending: true })
+        .order('area', { ascending: true })
+        .limit(1000);
       if (!ativo) return;
       setRegistros(error ? [] : (data || []));
       setErro(error ? 'O acompanhamento de recursos ainda não está conectado à base de dados.' : null);
