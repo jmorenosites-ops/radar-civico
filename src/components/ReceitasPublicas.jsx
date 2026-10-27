@@ -32,8 +32,10 @@ export default function ReceitasPublicas({ ano, uf, esfera }) {
     return ()=>{ativo=false;};
   },[]);
   const entes=useMemo(() => {
+    const ufSelecionada = uf || (esfera === 'Distrital' ? 'DF' : 'SP');
     const filtrados=registros.filter(r => Number(r.ano_referencia) === Number(ano)
-      && (!uf || r.uf === uf) && (!esfera || r.esfera === esfera));
+      && r.uf === ufSelecionada
+      && (esfera ? r.esfera === esfera : (uf ? true : r.esfera === 'Municipal')));
     const grupos=new Map();
     for(const registro of filtrados) {
       const key=String(registro.ente_id)+'-'+registro.ano_referencia;
@@ -51,6 +53,7 @@ export default function ReceitasPublicas({ ano, uf, esfera }) {
   </p>;
 
   return <div className="space-y-4">
+    {!uf && <p className="text-xs text-slate-600">Destaque inicial da arrecadação. Selecione outra UF para consultar os valores daquele governo.</p>}
     {entes.map(items => {
       const base=items[0];
       const fonte=urlOficial(base.fonte_url);
