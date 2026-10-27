@@ -60,7 +60,7 @@ begin
         where j.x->>'cod_ibge' = v_job.ente::text
         and j.x->>'exercicio' = v_job.exercicio::text
         and j.x->>'periodo' = v_job.periodo::text
-        and j.x->>'esfera' = case when v_job.ente=3550308 then 'M' when v_job.ente=53 then 'D' else 'E' end
+        and j.x->>'esfera' = case when v_job.ente=3550308 then 'M' else 'E' end
         and j.x->>'anexo' = 'RREO-Anexo 02'
         and j.x->>'cod_conta' = 'RREO2TotalDespesas'
         and j.x->>'rotulo' = 'Total das Despesas Exceto Intra-Orçamentárias'
