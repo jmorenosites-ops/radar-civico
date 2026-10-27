@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import Compromissos from './components/Compromissos';
+import RastreioRecursos from './components/RastreioRecursos';
 
 const ESTADOS_BRASIL = [
   "AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", 
@@ -202,6 +203,11 @@ Data: ${new Date().toLocaleDateString('pt-BR')}`;
           </div>
         </div>
       </header>
+
+      {/* RASTREABILIDADE DO DINHEIRO PÚBLICO */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+        <RastreioRecursos />
+      </div>
 
       {/* ÁREA DE BUSCA */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
