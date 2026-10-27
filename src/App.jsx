@@ -16,6 +16,7 @@ const ESTADOS_BRASIL = [
 ];
 
 export default function App() {
+  const [activeSection, setActiveSection] = useState("dinheiro");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUf, setSelectedUf] = useState("");
   const [selectedCargo, setSelectedCargo] = useState("todos");
@@ -117,8 +118,8 @@ export default function App() {
   }, [searchTerm, selectedUf, selectedCargo]);
 
   useEffect(() => {
-    fetchAllData();
-  }, [fetchAllData]);
+    if (activeSection === "politicos") fetchAllData();
+  }, [activeSection, fetchAllData]);
 
   // Carrega despesas da câmara ou usa as do Supabase
   const inspectPolitician = async (pol) => {
@@ -193,7 +194,7 @@ Data: ${new Date().toLocaleDateString('pt-BR')}`;
                   Transparência 360°
                 </span>
               </div>
-              <p className="text-xs text-slate-500">Auditoria integrada: Presidência, Governadores, Deputados, Prefeitos e Vereadores</p>
+              <p className="text-xs text-slate-500">Acompanhamento do dinheiro público com fontes e documentos</p>
             </div>
           </div>
 
@@ -204,13 +205,41 @@ Data: ${new Date().toLocaleDateString('pt-BR')}`;
         </div>
       </header>
 
+      <nav className="bg-white border-b border-slate-200" aria-label="Navegação principal">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-2 py-3">
+          <button
+            type="button"
+            aria-current={activeSection === "dinheiro" ? "page" : undefined}
+            onClick={() => { setActiveSection("dinheiro"); setSelectedPolitician(null); setPetitionModal(null); }}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${activeSection === "dinheiro"
+              ? "bg-blue-700 text-white"
+              : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+          >
+            Mapa do dinheiro
+          </button>
+          <button
+            type="button"
+            aria-current={activeSection === "politicos" ? "page" : undefined}
+            onClick={() => setActiveSection("politicos")}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${activeSection === "politicos"
+              ? "bg-blue-700 text-white"
+              : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+          >
+            Políticos e autoridades
+          </button>
+        </div>
+      </nav>
+
       {/* RASTREABILIDADE DO DINHEIRO PÚBLICO */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        <RastreioRecursos />
-      </div>
+      {activeSection === "dinheiro" && (
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8" id="conteudo-principal">
+          <RastreioRecursos />
+        </main>
+      )}
 
       {/* ÁREA DE BUSCA */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      {activeSection === "politicos" && (
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6" id="conteudo-principal">
         <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
@@ -359,6 +388,7 @@ Data: ${new Date().toLocaleDateString('pt-BR')}`;
           )}
         </div>
       </main>
+      )}
 
       {/* PAINEL LATERAL DE INSPEÇÃO NATIVA */}
       {selectedPolitician && (
