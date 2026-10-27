@@ -6,6 +6,7 @@ import {
   Award, DollarSign, Wallet, ShieldAlert, ArrowUpRight
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
+import Compromissos from './components/Compromissos';
 
 const ESTADOS_BRASIL = [
   "AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", 
@@ -29,7 +30,9 @@ export default function App() {
   const [petitionModal, setPetitionModal] = useState(null);
   const [copied, setCopied] = useState(false);
 
-  const formatBRL = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
+  const formatBRL = (val) => val === null || val === undefined || val === '' || !Number.isFinite(Number(val))
+    ? 'Não informado'
+    : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(val));
 
   // Consulta híbrida
   const fetchAllData = useCallback(async () => {
@@ -57,12 +60,12 @@ export default function App() {
             cargo: p.cargo,
             esfera: p.esfera,
             municipio: p.municipio,
-            anoEleicao: p.ano_eleicao || 2024,
-            situacao: p.situacao || "Eleito",
+            anoEleicao: p.ano_eleicao ?? null,
+            situacao: p.situacao || "Não informada",
             urlFoto: p.foto_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
             origem: "Supabase (TSE)",
-            gastoAcumulado: Number(p.gasto_acumulado) || 0,
-            patrimonioTotal: Number(p.patrimonio_total) || 0,
+            gastoAcumulado: p.gasto_acumulado == null ? null : Number(p.gasto_acumulado),
+            patrimonioTotal: p.patrimonio_total == null ? null : Number(p.patrimonio_total),
             bensDeclarados: p.bens_declarados || [],
             doadoresCampanha: p.doadores_campanha || [],
             despesasGabinete: p.despesas_gabinete || []
@@ -72,7 +75,7 @@ export default function App() {
       }
 
       if (selectedCargo === "todos" || selectedCargo === "deputado_federal") {
-        let camaraUrl = `https://dadosabertos.camara.leg.br/api/v2/deputados?ordem=ASC&ordenarPor=nome&itens=16`;
+        let camaraUrl = `https://dadosabertos.camara.leg.br/api/v2/deputados?ordem=ASC&ordenarPor=nome&itens=100`;
         if (searchTerm.trim()) camaraUrl += `&nome=${encodeURIComponent(searchTerm.trim())}`;
         if (selectedUf) camaraUrl += `&siglaUf=${selectedUf}`;
 
@@ -91,11 +94,11 @@ export default function App() {
             municipio: "Brasília / DF",
             urlFoto: d.urlFoto,
             email: d.email,
-            anoEleicao: 2022,
+            anoEleicao: null,
             situacao: "Em Exercício",
             origem: "Câmara Federal (API Ao Vivo)",
-            gastoAcumulado: 0,
-            patrimonioTotal: 0,
+            gastoAcumulado: null,
+            patrimonioTotal: null,
             bensDeclarados: [],
             doadoresCampanha: [],
             despesasGabinete: []
@@ -128,7 +131,7 @@ export default function App() {
     if (isFederalCamara) {
       try {
         const res = await fetch(
-          `https://dadosabertos.camara.leg.br/api/v2/deputados/${pol.rawId}/despesas?ordem=DESC&ordenarPor=dataDocumento&itens=25`,
+          `https://dadosabertos.camara.leg.br/api/v2/deputados/${pol.rawId}/despesas?ordem=DESC&ordenarPor=dataDocumento&itens=100`,
           { headers: { Accept: "application/json" } }
         );
         if (res.ok) {
@@ -143,27 +146,27 @@ export default function App() {
   };
 
   const openPetitionModal = (pol) => {
-    const textoOficio = `AO MINISTÉRIO PÚBLICO / TRIBUNAL DE CONTAS / SISTEMA FALA.BR
+    const textoOficio = `AO SERVIÇO DE INFORMAÇÃO AO CIDADÃO DO ÓRGÃO RESPONSÁVEL
 
-ASSUNTO: REQUERIMENTO DE AUDITORIA DE RECURSOS PÚBLICOS E DECLARAÇÃO DE BENS (LEI Nº 12.527/2011 E ART. 37 DA CF/88)
+ASSUNTO: Pedido de acesso à informação — Lei nº 12.527/2011
 
-Excelentíssimos Senhores,
+Solicito, nos termos da Lei de Acesso à Informação, acesso aos registros oficiais
+de despesas públicas relacionadas às atividades do órgão a que se vincula a seguinte autoridade:
 
-Solicito a auditoria formal das contas, notas fiscais e evolução patrimonial referente à autoridade:
+NOME DE REFERÊNCIA: ${pol.nome} 
+CARGO: ${pol.cargo}
+ÓRGÃO / LOCALIDADE: ${pol.municipio || pol.esfera || 'Não informado'}
 
-NOME: ${pol.nome.toUpperCase()} (${pol.nomeCompleto})
-CARGO: ${pol.cargo} (${pol.esfera})
-PARTIDO / UF: ${pol.siglaPartido} - ${pol.siglaUf}
-LOCALIDADE: ${pol.municipio || "Âmbito Nacional"}
+Solicito, quando disponíveis, a identificação de despesas, respectivos períodos,
+valores, fornecedores, objetos, números de empenho, liquidação e pagamento,
+documentos comprobatórios e endereços eletrônicos para consulta.
 
-FUNDAMENTAÇÃO JURÍDICA:
-Com base na Lei de Acesso à Informação (Lei 12.527/2011) e no princípio da moralidade administrativa (Art. 37 da Constituição Federal), requer-se:
-1. Comprovantes detalhados de liquidação das despesas de gabinete declaradas;
-2. Comprovação da compatibilidade da evolução patrimonial em relação aos subsídios públicos percebidos.
+Caso o órgão não possua os dados solicitados, peço a indicação do responsável
+por sua guarda ou a fundamentação da indisponibilidade.
 
-Data: ${new Date().toLocaleDateString('pt-BR')}
-Cidadão Fiscalizador`;
+Este é um pedido de informação, não uma alegação de irregularidade.
 
+Data: ${new Date().toLocaleDateString('pt-BR')}`;
     setPetitionModal({ pol, textoOficio });
   };
 
@@ -195,7 +198,7 @@ Cidadão Fiscalizador`;
 
           <div className="text-xs font-mono text-slate-500 flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-            Dados Oficiais Nativos
+            Dados oficiais quando disponíveis
           </div>
         </div>
       </header>
@@ -235,6 +238,12 @@ Cidadão Fiscalizador`;
               <option value="Prefeito">Prefeitos</option>
               <option value="Vereador">Vereadores</option>
               <option value="deputado_federal">Deputados Federais (Ao Vivo)</option>
+              <option value="Deputado Estadual">Deputados Estaduais</option>
+              <option value="Senador">Senadores</option>
+              <option value="Vice-Presidente">Vice-presidência</option>
+              <option value="Vice-Governador">Vice-governadores</option>
+              <option value="Ministro de Estado">Ministros de Estado</option>
+              <option value="Ministro do STF">Ministros do STF</option>
             </select>
 
             <select
@@ -269,7 +278,7 @@ Cidadão Fiscalizador`;
         <div className="space-y-3">
           <div className="flex justify-between items-center text-xs text-slate-500 font-mono px-1">
             <span>Resultados: <strong>{politicians.length}</strong></span>
-            <span>Bases: TSE + Câmara Federal</span>
+            <span>Bases consultadas: Supabase + Câmara Federal</span>
           </div>
 
           {isLoading ? (
@@ -300,12 +309,7 @@ Cidadão Fiscalizador`;
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <img 
-                        src={pol.urlFoto} 
-                        alt={pol.nome} 
-                        className="w-12 h-14 rounded-lg object-cover bg-slate-100 border border-slate-200 shrink-0"
-                        onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200"; }}
-                      />
+                      
                       <div className="overflow-hidden">
                         <h3 className="font-bold text-slate-900 text-sm leading-tight truncate" title={pol.nome}>
                           {pol.nome}
@@ -338,7 +342,7 @@ Cidadão Fiscalizador`;
                     <button
                       onClick={() => openPetitionModal(pol)}
                       className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
-                      title="Gerar Cobrança"
+                      title="Preparar Pedido LAI"
                     >
                       <Mail className="w-3.5 h-3.5" />
                     </button>
@@ -359,12 +363,7 @@ Cidadão Fiscalizador`;
               {/* CABEÇALHO */}
               <div className="flex items-start justify-between border-b pb-4">
                 <div className="flex items-center gap-3">
-                  <img 
-                    src={selectedPolitician.urlFoto} 
-                    alt={selectedPolitician.nome} 
-                    className="w-14 h-16 rounded-xl object-cover border border-slate-200 shadow-xs shrink-0" 
-                    onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200"; }}
-                  />
+                  
                   <div>
                     <h2 className="text-lg font-bold text-slate-900 leading-tight">{selectedPolitician.nome}</h2>
                     <p className="text-xs text-slate-500 font-mono">
@@ -372,7 +371,7 @@ Cidadão Fiscalizador`;
                     </p>
                     <p className="text-[11px] text-slate-600 font-mono mt-0.5">{selectedPolitician.municipio}</p>
                     <span className="inline-block mt-1 text-[10px] font-bold font-mono uppercase px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
-                      Situação: {selectedPolitician.situacao} ({selectedPolitician.anoEleicao})
+                      Situação: {selectedPolitician.situacao}{selectedPolitician.anoEleicao ? ` (${selectedPolitician.anoEleicao})` : ''}
                     </span>
                   </div>
                 </div>
@@ -422,7 +421,7 @@ Cidadão Fiscalizador`;
                 /* DEPUTADO FEDERAL: NOTAS FISCAIS DA CÂMARA EM TEMPO REAL */
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
-                    <h3 className="text-xs font-bold uppercase text-slate-500 font-mono">Últimas Notas Fiscais Registradas (CEAP):</h3>
+                    <h3 className="text-xs font-bold uppercase text-slate-500 font-mono">Despesas recentes registradas (até 100):</h3>
                     <a
                       href={`https://www.camara.leg.br/deputados/${selectedPolitician.rawId}`}
                       target="_blank"
@@ -527,7 +526,7 @@ Cidadão Fiscalizador`;
                           ))
                         ) : (
                           <div className="p-4 bg-slate-50 border rounded-lg text-xs text-slate-500 text-center font-mono">
-                            Nenhum bem individual discriminado no registro da eleição.
+                            Não há bens individualizados disponíveis nesta base.
                           </div>
                         )}
                       </div>
@@ -538,7 +537,7 @@ Cidadão Fiscalizador`;
                   {inspectorTab === "despesas" && (
                     <div className="space-y-3">
                       <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex justify-between items-center text-xs font-mono">
-                        <span className="text-blue-900 font-bold">Verba Auditada:</span>
+                        <span className="text-blue-900 font-bold">Gastos cadastrados:</span>
                         <span className="text-base font-extrabold text-blue-950">
                           {formatBRL(selectedPolitician.gastoAcumulado)}
                         </span>
@@ -557,7 +556,7 @@ Cidadão Fiscalizador`;
                           ))
                         ) : (
                           <div className="p-4 bg-slate-50 border rounded-lg text-xs text-slate-500 text-center font-mono">
-                            Prestação contábil anual consolidada em {selectedPolitician.municipio}.
+                            Não há despesas individualizadas disponíveis nesta base. Isso não significa ausência de gastos.
                           </div>
                         )}
                       </div>
@@ -580,7 +579,7 @@ Cidadão Fiscalizador`;
                           ))
                         ) : (
                           <div className="p-4 bg-slate-50 border rounded-lg text-xs text-slate-500 text-center font-mono">
-                            Sem doadores declarados além da dotação padrão do fundo partidário.
+                            Não há doadores detalhados disponíveis nesta base. Isso não significa ausência de doações.
                           </div>
                         )}
                       </div>
@@ -593,11 +592,12 @@ Cidadão Fiscalizador`;
                     className="w-full py-2.5 px-3 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold font-mono transition flex items-center justify-center gap-2 shadow-xs mt-3"
                   >
                     <Mail className="w-4 h-4" />
-                    Gerar Notificação LAI / Cobrar Transparência
+                    Preparar Pedido de Informação (LAI)
                   </button>
                 </div>
               )}
 
+              <Compromissos politico={selectedPolitician} />
             </div>
 
             <button onClick={() => setSelectedPolitician(null)} className="w-full py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-mono font-semibold">
@@ -613,7 +613,7 @@ Cidadão Fiscalizador`;
           <div className="w-full max-w-xl bg-white border border-slate-200 rounded-xl shadow-2xl p-6 space-y-4">
             <div className="flex items-center justify-between border-b pb-3">
               <span className="font-bold text-sm text-blue-700 flex items-center gap-2">
-                <Scale className="w-4 h-4" /> Notificação Cívica Formal
+                <Scale className="w-4 h-4" /> Pedido de Informação (LAI)
               </span>
               <button onClick={() => setPetitionModal(null)} className="text-slate-400 hover:text-slate-700"><X className="w-5 h-5" /></button>
             </div>
@@ -622,7 +622,7 @@ Cidadão Fiscalizador`;
               {copied && <span className="text-emerald-700 text-xs font-mono font-bold">Copiado com sucesso!</span>}
               <div className="flex gap-2">
                 <button onClick={() => handleCopy(petitionModal.textoOficio)} className="px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1">
-                  <Copy className="w-3.5 h-3.5" /> Copiar Notificação
+                  <Copy className="w-3.5 h-3.5" /> Copiar Pedido
                 </button>
                 <a
                   href={`https://falabr.cgu.gov.br`}
@@ -630,7 +630,7 @@ Cidadão Fiscalizador`;
                   rel="noreferrer"
                   className="px-3 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-xs font-semibold flex items-center gap-1 shadow-xs"
                 >
-                  <ExternalLink className="w-3.5 h-3.5" /> Protocolar no Fala.BR
+                  <ExternalLink className="w-3.5 h-3.5" /> Abrir Fala.BR para protocolar
                 </a>
               </div>
             </div>
