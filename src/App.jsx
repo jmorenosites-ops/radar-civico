@@ -44,7 +44,7 @@ export default function App() {
 
     try {
       if (selectedCargo !== "deputado_federal") {
-        let query = supabase.from('politicos').select('*');
+        let query = supabase.from('politicos').select('*').eq('fonte_validada', true);
 
         if (searchTerm.trim()) query = query.ilike('nome_urna', `%${searchTerm.trim()}%`);
         if (selectedUf) query = query.eq('estado', selectedUf);
@@ -64,13 +64,12 @@ export default function App() {
             municipio: p.municipio,
             anoEleicao: p.ano_eleicao ?? null,
             situacao: p.situacao || "Não informada",
-            urlFoto: p.foto_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
-            origem: "Supabase (TSE)",
-            gastoAcumulado: p.gasto_acumulado == null ? null : Number(p.gasto_acumulado),
-            patrimonioTotal: p.patrimonio_total == null ? null : Number(p.patrimonio_total),
-            bensDeclarados: p.bens_declarados || [],
-            doadoresCampanha: p.doadores_campanha || [],
-            despesasGabinete: p.despesas_gabinete || []
+                        origem: "Cadastro local validado",
+            gastoAcumulado: null, // ocultar valores legados sem comprovação de fonte financeira
+            patrimonioTotal: null, // sem fonte patrimonial verificada
+            bensDeclarados: [],
+            doadoresCampanha: [],
+            despesasGabinete: []
           }));
           results = [...results, ...formattedSupa];
         }
@@ -81,10 +80,21 @@ export default function App() {
         if (searchTerm.trim()) camaraUrl += `&nome=${encodeURIComponent(searchTerm.trim())}`;
         if (selectedUf) camaraUrl += `&siglaUf=${selectedUf}`;
 
-        const res = await fetch(camaraUrl, { headers: { Accept: "application/json" } });
-        if (res.ok) {
-          const camaraData = await res.json();
-          const formattedCamara = (camaraData.dados || []).map(d => ({
+        const deputados = [];
+        let proxima = camaraUrl;
+        let paginas = 0;
+        while (proxima && paginas < 10) {
+          const res = await fetch(proxima, { headers: { Accept: "application/json" } });
+          if (!res.ok) throw new Error(`Falha na API da Câmara: HTTP ${res.status}`);
+          const pagina = await res.json();
+          deputados.push(...(pagina.dados || []));
+          const href = (pagina.links || []).find(link => link.rel === 'next')?.href;
+          const destino = href ? new URL(href, camaraUrl) : null;
+          proxima = destino && destino.origin === 'https://dadosabertos.camara.leg.br' ? destino.href : null;
+          paginas += 1;
+        }
+        {
+          const formattedCamara = deputados.map(d => ({
             id: d.id,
             rawId: d.id,
             nome: d.nome,
@@ -94,7 +104,6 @@ export default function App() {
             cargo: "Deputado Federal",
             esfera: "Federal",
             municipio: "Brasília / DF",
-            urlFoto: d.urlFoto,
             email: d.email,
             anoEleicao: null,
             situacao: "Em Exercício",
@@ -246,7 +255,7 @@ Data: ${new Date().toLocaleDateString('pt-BR')}`;
               Pesquisar Políticos em Todas as Esferas
             </h1>
             <p className="text-sm text-slate-600">
-              Consulte patrimônio declarado no TSE, doadores de campanha e notas fiscais de gabinetes.
+              Consulte autoridades e despesas com fonte oficial. Cadastros e valores ainda não verificados não são publicados.
             </p>
           </div>
 
@@ -313,7 +322,7 @@ Data: ${new Date().toLocaleDateString('pt-BR')}`;
         <div className="space-y-3">
           <div className="flex justify-between items-center text-xs text-slate-500 font-mono px-1">
             <span>Resultados: <strong>{politicians.length}</strong></span>
-            <span>Bases consultadas: Supabase + Câmara Federal</span>
+            <span>Câmara dos Deputados + cadastros locais verificados</span>
           </div>
 
           {isLoading ? (
@@ -325,7 +334,7 @@ Data: ${new Date().toLocaleDateString('pt-BR')}`;
             <div className="p-12 text-center bg-white border border-slate-200 rounded-xl space-y-2">
               <Users className="w-10 h-10 text-slate-300 mx-auto" />
               <h3 className="font-bold text-slate-700">Nenhum resultado localizado</h3>
-              <p className="text-xs text-slate-500">Tente ajustar os filtros ou a palavra-chave.</p>
+              <p className="text-xs text-slate-500">Não há perfis verificados para esta seleção. Ampliaremos a cobertura quando os dados forem validados em fontes oficiais.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
