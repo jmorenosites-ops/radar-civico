@@ -101,6 +101,9 @@ export default function RastreioRecursos() {
   const escopoDestaque = esfera === 'Estadual' ? 'Estadual' : 'Municipal';
   const piloto = registros.filter(r => r.origem_base === 'SICONFI-RREO-Anexo02' && r.esfera === escopoDestaque && r.ano_referencia === anoAtivo);
   const principal = ['Educação', 'Saúde'].map(nome => piloto.find(r => r.area === nome)).filter(Boolean);
+  const rankingAreas = [...piloto].filter(r => r.valor_liquidado != null && Number(r.valor_liquidado) >= 0)
+    .sort((a,b) => Number(b.valor_liquidado) - Number(a.valor_liquidado)).slice(0,10);
+  const maiorDespesa = Math.max(1, ...rankingAreas.map(r => Number(r.valor_liquidado)));
 
   const comparacao = registro => {
     // Comparar apenas promessa de repasse e repasse, nunca somar etapas orçamentárias.
@@ -146,7 +149,20 @@ export default function RastreioRecursos() {
               </div>
             ))}
           </div>
-          <p className="text-xs text-slate-600">As áreas abaixo podem ser comparadas individualmente. Nenhum valor é atribuído a um político nem tratado como pagamento sem a fonte correspondente.</p>
+          <div className="border-t border-slate-200 pt-3 space-y-2">
+            <h4 className="text-xs font-bold text-slate-800">Maiores despesas liquidadas por área</h4>
+            {rankingAreas.map(item => (
+              <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.8fr)] sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto] items-center gap-2 text-xs">
+                <span className="truncate text-slate-700" title={item.area}>{item.area}</span>
+                <div className="bg-slate-200 rounded-full h-3 overflow-hidden" role="img" aria-label={item.area + ': ' + dinheiro(item.valor_liquidado)}>
+                  <div className="bg-blue-600 rounded-full h-full" style={{width: `${100 * Number(item.valor_liquidado) / maiorDespesa}%`}} />
+                </div>
+                <span className="hidden sm:inline text-right font-semibold tabular-nums text-slate-700">{dinheiro(item.valor_liquidado)}</span>
+              </div>
+            ))}
+            <p className="text-[11px] text-slate-500">Cada barra compara uma função da mesma esfera e período. Áreas e subfunções não são somadas entre si.</p>
+          </div>
+          <p className="text-xs text-slate-600">Nenhum valor é atribuído a um político nem tratado como pagamento sem a fonte correspondente.</p>
         </div>
       )}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
@@ -243,6 +259,10 @@ export default function RastreioRecursos() {
                     <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
                       <div className="bg-blue-600 h-full rounded-full" style={{width: `${Math.min(100, Math.max(0, 100 * Number(r.valor_liquidado) / Number(r.valor_autorizado)))}%`}} />
                     </div>
+                    <p className="text-[11px] text-slate-600">
+                      Diferença entre dotação e liquidação: {dinheiro(Number(r.valor_autorizado) - Number(r.valor_liquidado))}.
+                      Esse saldo não significa desvio ou transferência para outra área.
+                    </p>
                     <p className="text-[11px] text-slate-500">O RREO Anexo 02 não identifica pagamentos individuais ou fornecedores.</p>
                   </div>
                 )}
