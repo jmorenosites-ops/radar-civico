@@ -4,10 +4,11 @@ Verificado em 27/10/2026. Nenhum dado fictício é publicado.
 
 ## Dados integrados
 
-- Supabase `xwmtyoakahfnmjtquqfh`: 721 registros SICONFI de execução por função, sendo 652 estaduais (26 UFs), 24 distritais e 45 municipais (SP). Referências 2025–2026; estados e DF apenas 2026 nesta verificação. Há 224 registros de receitas, 64 autoridades e nenhum movimento individual na tabela legada `rastreio_movimentos`. São contagens de registros, não totais financeiros.
+- Supabase `xwmtyoakahfnmjtquqfh`: 721 registros SICONFI de execução por função, sendo 652 estaduais (26 UFs), 24 distritais e 45 municipais (SP). Referências 2025–2026; estados e DF apenas 2026 nesta verificação. Há 224 registros de receitas e nenhum movimento individual na tabela legada `rastreio_movimentos`. Os 64 cadastros legados de autoridades têm `fonte_validada=false` e não são exibidos como oficiais; não há ministros cadastrados. Os filtros de ministros de Estado e STF estão preservados, mas sem resultados nesta base. Deputados são consultados diretamente na Câmara. São contagens de registros, não totais financeiros.
 - SICONFI: RREO Anexo 01 para receitas e Anexo 02 para dotação, empenho e liquidação. Rotinas de coleta existentes em `supabase/migrations` e tabelas públicas protegidas por RLS. O aplicativo não escreve nessas tabelas.
 - Transferegov / Transferências Especiais: nova consulta ao vivo pelo servidor Vercel, em `GET /api/fontes`. Planos por exercício/parlamentar; lançamentos por conta oficialmente vinculada, CNPJ do ente ou do favorecido; subtransações pelo identificador oficial do lançamento. Paginação de 20 registros com contagem da consulta. Não grava nem inventa pagamentos na tabela legada.
 - Câmara dos Deputados: deputados e despesas da cota parlamentar, incluindo fornecedores/documentos disponibilizados pela fonte, na consulta de autoridades existente.
+  As chamadas passam pela rota `GET /api/camara` no servidor Vercel para evitar bloqueios CORS da fonte no navegador. A lista de deputados mantém paginação; a inspeção mostra até 100 despesas recentes, sem representar todo o histórico.
 - Preservados: políticos e ministros, compromissos com evidência, Fala.BR, ausência de fotos e o rodapé solicitado.
 
 ## Limitações

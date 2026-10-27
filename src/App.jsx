@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Search, Scale, Users, Eye, Mail, Copy,
   X, AlertTriangle, ExternalLink, Loader2,
@@ -24,10 +24,12 @@ export default function App() {
   const [politicians, setPoliticians] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
+  const consultaAtual = useRef(0);
 
   const [selectedPolitician, setSelectedPolitician] = useState(null);
   const [expenses, setExpenses] = useState([]);
   const [isLoadingExpenses, setIsLoadingExpenses] = useState(false);
+  const [expenseError, setExpenseError] = useState(null);
   const [inspectorTab, setInspectorTab] = useState("despesas"); // 'despesas' | 'bens' | 'doadores'
   const [petitionModal, setPetitionModal] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -38,6 +40,7 @@ export default function App() {
 
   // Consulta híbrida
   const fetchAllData = useCallback(async () => {
+    const sequencia = ++consultaAtual.current;
     setIsLoading(true);
     setErrorMsg(null);
     let results = [];
@@ -76,9 +79,9 @@ export default function App() {
       }
 
       if (selectedCargo === "todos" || selectedCargo === "deputado_federal") {
-        let camaraUrl = `https://dadosabertos.camara.leg.br/api/v2/deputados?ordem=ASC&ordenarPor=nome&itens=100`;
+        let camaraUrl = `/api/camara?tipo=deputados&pagina=1`;
         if (searchTerm.trim()) camaraUrl += `&nome=${encodeURIComponent(searchTerm.trim())}`;
-        if (selectedUf) camaraUrl += `&siglaUf=${selectedUf}`;
+        if (selectedUf) camaraUrl += `&uf=${selectedUf}`;
 
         const deputados = [];
         let proxima = camaraUrl;
@@ -89,8 +92,8 @@ export default function App() {
           const pagina = await res.json();
           deputados.push(...(pagina.dados || []));
           const href = (pagina.links || []).find(link => link.rel === 'next')?.href;
-          const destino = href ? new URL(href, camaraUrl) : null;
-          proxima = destino && destino.origin === 'https://dadosabertos.camara.leg.br' ? destino.href : null;
+          const destino = href ? new URL(href, window.location.origin) : null;
+          proxima = destino && destino.origin === window.location.origin && destino.pathname === '/api/camara' ? destino.href : null;
           paginas += 1;
         }
         {
@@ -118,18 +121,18 @@ export default function App() {
         }
       }
 
-      setPoliticians(results);
+      if (sequencia === consultaAtual.current) setPoliticians(results);
     } catch {
-      setErrorMsg("Ocorreu uma falha ao sincronizar as bases de dados.");
+      if (sequencia === consultaAtual.current) setErrorMsg("Ocorreu uma falha ao sincronizar as bases de dados.");
     } finally {
-      setIsLoading(false);
+      if (sequencia === consultaAtual.current) setIsLoading(false);
     }
   }, [searchTerm, selectedUf, selectedCargo]);
 
   useEffect(() => {
     if (activeSection !== "politicos") return;
     const timer = setTimeout(fetchAllData, 250);
-    return () => clearTimeout(timer);
+    return () => {clearTimeout(timer);consultaAtual.current += 1;};
   }, [activeSection, fetchAllData]);
 
   // Carrega despesas da câmara ou usa as do Supabase
@@ -138,21 +141,21 @@ export default function App() {
     setInspectorTab(pol.bensDeclarados && pol.bensDeclarados.length > 0 ? "bens" : "despesas");
     setIsLoadingExpenses(true);
     setExpenses([]);
+    setExpenseError(null);
 
     const isFederalCamara = pol.esfera === "Federal" && !String(pol.id).startsWith("supa-");
 
     if (isFederalCamara) {
       try {
         const res = await fetch(
-          `https://dadosabertos.camara.leg.br/api/v2/deputados/${pol.rawId}/despesas?ordem=DESC&ordenarPor=dataDocumento&itens=100`,
+          `/api/camara?tipo=despesas&id=${pol.rawId}`,
           { headers: { Accept: "application/json" } }
         );
-        if (res.ok) {
-          const data = await res.json();
-          setExpenses(data.dados || []);
-        }
-      } catch (e) {
-        console.error("Erro ao buscar despesas da câmara:", e);
+        if (!res.ok) throw new Error('Falha na fonte oficial');
+        const data = await res.json();
+        setExpenses(data.dados || []);
+      } catch {
+        setExpenseError('Não foi possível consultar as despesas na Câmara. Tente abrir a inspeção novamente.');
       }
     }
     setIsLoadingExpenses(false);
@@ -482,7 +485,7 @@ Data: ${new Date().toLocaleDateString('pt-BR')}`;
 
                   {isLoadingExpenses ? (
                     <div className="py-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-blue-600" /></div>
-                  ) : expenses.length === 0 ? (
+                  ) : expenseError ? <p role="alert" className="text-xs text-amber-900 bg-amber-50 p-3 rounded">{expenseError}</p> : expenses.length === 0 ? (
                     <div className="p-4 bg-slate-50 border rounded-lg text-xs text-slate-500 font-mono space-y-2">
                       <p>Nenhuma despesa recente devolvida na listagem rápida da API oficial.</p>
                       <a
