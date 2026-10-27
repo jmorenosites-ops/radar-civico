@@ -98,8 +98,12 @@ export default function RastreioRecursos() {
   const ufs = [...new Set(registros.map(r => r.uf).filter(Boolean))].sort();
   const areas = [...new Set(registros.map(r => r.area).filter(Boolean))].sort();
 
-  const escopoDestaque = esfera === 'Estadual' ? 'Estadual' : 'Municipal';
-  const piloto = registros.filter(r => r.origem_base === 'SICONFI-RREO-Anexo02' && r.esfera === escopoDestaque && r.ano_referencia === anoAtivo);
+  const escopoDestaque = esfera || (uf && uf !== 'SP' ? 'Estadual' : 'Municipal');
+  const possiveis = registros.filter(r => r.origem_base === 'SICONFI-RREO-Anexo02'
+    && r.esfera === escopoDestaque && r.ano_referencia === anoAtivo
+    && (!uf || r.uf === uf));
+  const entidadeDestaque = possiveis[0]?.orgao_origem;
+  const piloto = possiveis.filter(r => r.orgao_origem === entidadeDestaque);
   const principal = ['Educação', 'Saúde'].map(nome => piloto.find(r => r.area === nome)).filter(Boolean);
   const rankingAreas = [...piloto].filter(r => r.valor_liquidado != null && Number(r.valor_liquidado) >= 0)
     .sort((a,b) => Number(b.valor_liquidado) - Number(a.valor_liquidado)).slice(0,10);
@@ -136,7 +140,7 @@ export default function RastreioRecursos() {
       {principal.length > 0 && (
         <div className="border border-slate-200 rounded-xl bg-slate-50 p-4 space-y-3">
           <div>
-            <h3 className="font-bold text-sm text-slate-900">Primeira base integrada: {escopoDestaque === 'Estadual' ? 'Governo do Estado de São Paulo' : 'Município de São Paulo'} · {anoAtivo}</h3>
+            <h3 className="font-bold text-sm text-slate-900">Execução por função — {entidadeDestaque} · {anoAtivo}</h3>
             <p className="text-xs text-slate-600 mt-1">Tesouro Nacional / SICONFI · {principal[0]?.situacao}. Dados acumulados no período, não pagamentos finais nem promessas eleitorais.</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -196,6 +200,7 @@ export default function RastreioRecursos() {
             <option value="">Estado e município</option>
             <option value="Estadual">Governo estadual</option>
             <option value="Municipal">Governo municipal</option>
+            <option value="Distrital">Distrito Federal</option>
           </select>
         </label>
         <label>
