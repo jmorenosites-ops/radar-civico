@@ -41,7 +41,7 @@ export default function RastreioRecursos() {
     const carregar = async () => {
       const { data, error } = await supabase
         .from('rastreio_recursos')
-        .select('id,titulo,descricao,area,uf,municipio,orgao_origem,orgao_destino,ano_referencia,identificador_oficial,valor_anunciado,valor_previsto_repasse,valor_transferido,valor_autorizado,valor_empenhado,valor_liquidado,valor_pago,motivo_diferenca,situacao,fonte_url,fonte_atualizada_em')
+        .select('id,titulo,descricao,area,uf,municipio,orgao_origem,orgao_destino,ano_referencia,identificador_oficial,valor_anunciado,valor_previsto_repasse,valor_transferido,valor_autorizado,valor_empenhado,valor_liquidado,valor_pago,motivo_diferenca,situacao,fonte_url,fonte_atualizada_em,origem_base')
         .order('fonte_atualizada_em', { ascending: false, nullsFirst: false })
         .limit(300);
       if (!ativo) return;
@@ -85,11 +85,14 @@ export default function RastreioRecursos() {
       const texto = [r.titulo, r.descricao, r.municipio, r.orgao_origem,
         r.orgao_destino, r.identificador_oficial].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR');
       return texto.includes(q);
-    });
+    }).sort((a,b) => Number(b.ano_referencia || 0) - Number(a.ano_referencia || 0) || Number(b.valor_liquidado || 0) - Number(a.valor_liquidado || 0));
   }, [registros, busca, uf, area]);
 
   const ufs = [...new Set(registros.map(r => r.uf).filter(Boolean))].sort();
   const areas = [...new Set(registros.map(r => r.area).filter(Boolean))].sort();
+
+  const piloto = registros.filter(r => r.origem_base === 'SICONFI-RREO-Anexo02' && r.municipio === 'São Paulo' && r.ano_referencia === 2025);
+  const principal = ['Educação', 'Saúde'].map(nome => piloto.find(r => r.area === nome)).filter(Boolean);
 
   const comparacao = registro => {
     // Comparar apenas promessa de repasse e repasse, nunca somar etapas orçamentárias.
@@ -119,6 +122,25 @@ export default function RastreioRecursos() {
         </p>
       </div>
 
+      {principal.length > 0 && (
+        <div className="border border-slate-200 rounded-xl bg-slate-50 p-4 space-y-3">
+          <div>
+            <h3 className="font-bold text-sm text-slate-900">Primeira base integrada: São Paulo (município) · 2025</h3>
+            <p className="text-xs text-slate-600 mt-1">Tesouro Nacional / SICONFI · RREO Anexo 02 · 6º bimestre. Dados de execução orçamentária, não pagamentos finais nem promessas eleitorais.</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {principal.map(item => (
+              <div key={item.id} className="rounded-lg bg-white border border-slate-200 p-3">
+                <div className="font-semibold text-sm text-slate-900">{item.area}</div>
+                <div className="text-xl font-bold text-blue-800 mt-1">{dinheiro(item.valor_liquidado)}</div>
+                <p className="text-xs text-slate-500">Despesa liquidada até o fim de 2025</p>
+                <p className="text-xs text-slate-600 mt-2">Dotação atualizada: {dinheiro(item.valor_autorizado)}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-slate-600">As áreas abaixo podem ser comparadas individualmente. Nenhum valor é atribuído a um político nem tratado como pagamento sem a fonte correspondente.</p>
+        </div>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         <label className="relative">
           <span className="sr-only">Pesquisar recurso</span>
@@ -176,17 +198,29 @@ export default function RastreioRecursos() {
                     ['Anunciado', r.valor_anunciado],
                     ['Repasse previsto', r.valor_previsto_repasse],
                     ['Transferido', r.valor_transferido],
-                    ['Orçamento autorizado', r.valor_autorizado],
+                    ['Dotação atualizada', r.valor_autorizado],
                     ['Empenhado', r.valor_empenhado],
                     ['Liquidado', r.valor_liquidado],
                     ['Pago', r.valor_pago],
-                  ].map(([nome, valor]) => (
+                  ].filter(([,valor]) => valor !== null && valor !== undefined).map(([nome, valor]) => (
                     <div key={nome} className="rounded bg-slate-50 p-2 border border-slate-100">
                       <div className="text-slate-500">{nome}</div>
                       <div className="font-bold text-slate-900 mt-1">{dinheiro(valor)}</div>
                     </div>
                   ))}
                 </div>
+                {r.origem_base === 'SICONFI-RREO-Anexo02' && r.valor_liquidado != null && Number(r.valor_autorizado) > 0 && (
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs text-slate-600">
+                      <span>Liquidado / dotação atualizada</span>
+                      <span className="font-semibold">{(100 * Number(r.valor_liquidado) / Number(r.valor_autorizado)).toFixed(1)}%</span>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
+                      <div className="bg-blue-600 h-full rounded-full" style={{width: `${Math.min(100, Math.max(0, 100 * Number(r.valor_liquidado) / Number(r.valor_autorizado)))}%`}} />
+                    </div>
+                    <p className="text-[11px] text-slate-500">O RREO Anexo 02 não identifica pagamentos individuais ou fornecedores.</p>
+                  </div>
+                )}
                 {info && (
                   <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-slate-800 space-y-1">
                     <div className="font-semibold">
@@ -204,7 +238,7 @@ export default function RastreioRecursos() {
                   </div>
                 )}
                 <p className="text-xs text-slate-600">
-                  {r.orgao_origem || 'Origem não informada'} <ArrowRight className="w-3 h-3 inline" /> {r.orgao_destino || 'Destino não informado'}
+                  {r.orgao_destino ? <>{r.orgao_origem || 'Origem não informada'} <ArrowRight className="w-3 h-3 inline" /> {r.orgao_destino}</> : <>Órgão responsável: {r.orgao_origem || 'Não informado'}</>}
                 </p>
                 <div className="flex gap-4 flex-wrap text-xs">
                   {urlSegura(r.fonte_url) && (
@@ -212,10 +246,10 @@ export default function RastreioRecursos() {
                       Fonte oficial <ExternalLink className="w-3 h-3" />
                     </a>
                   )}
-                  <span className="text-slate-500">Fonte atualizada: {dataBR(r.fonte_atualizada_em)}</span>
+                  <span className="text-slate-500">Consulta registrada: {dataBR(r.fonte_atualizada_em)}</span>
                   <button type="button" className="text-blue-700 font-semibold underline"
                     onClick={() => setSelecionado(escolhido ? null : r)}>
-                    {escolhido ? 'Ocultar movimentos' : 'Ver para onde foi'}
+                    {escolhido ? 'Ocultar detalhes' : 'Detalhes e comprovantes'}
                   </button>
                 </div>
                 {escolhido && (
@@ -225,8 +259,8 @@ export default function RastreioRecursos() {
                       <p className="text-xs text-slate-600">Carregando...</p>
                     ) : movimentos.length === 0 ? (
                       <p className="text-xs text-slate-600">
-                        Ainda não há movimentações individuais vinculadas ao instrumento. Não é possível
-                        afirmar o destino final com os registros disponíveis.
+                        Este registro não possui pagamentos individuais vinculados nesta base.
+                        Para identificar fornecedores e documentos de pagamento, é necessária outra fonte oficial com esse detalhamento.
                       </p>
                     ) : movimentos.map(m => (
                       <div key={m.id} className="rounded bg-slate-50 border border-slate-200 p-3 text-xs space-y-1">
