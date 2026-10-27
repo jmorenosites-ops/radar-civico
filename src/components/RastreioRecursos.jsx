@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, ExternalLink, FileSearch, Loader2, Search } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import ReceitasPublicas from './ReceitasPublicas';
 
 const dinheiro = valor => valor == null || !Number.isFinite(Number(valor))
   ? 'Não informado'
@@ -218,6 +219,8 @@ export default function RastreioRecursos() {
           </select>
         </label>
       </div>
+
+      <ReceitasPublicas ano={anoAtivo} uf={uf} esfera={esfera} />
 
       {carregando ? (
         <p className="flex items-center gap-2 text-xs text-slate-600"><Loader2 className="w-4 h-4 animate-spin" /> Consultando dados...</p>
