@@ -8,6 +8,7 @@ Dar acesso unificado, verificável e apartidário aos registros oficiais de arre
 - **SICONFI / Tesouro Nacional — RREO Anexo 02**: despesas por função (dotação atualizada, empenhadas e liquidadas). Documentação: https://apidatalake.tesouro.gov.br/docs/siconfi/
 - **Câmara dos Deputados — Dados Abertos**: parlamentares federais e despesas parlamentares registradas na API. https://dadosabertos.camara.leg.br/
 - **Fala.BR**: direcionamento externo para solicitar acesso à informação, quando o órgão for atendido pela plataforma. https://falabr.cgu.gov.br/
+- **Transferegov — Transferências Especiais**: planos de ação, lançamentos financeiros e subtransações de pagamentos consultados ao vivo, com vínculo por identificadores oficiais e paginação. [Cobertura, limites e validação da integração](FONTES.md).
 
 ## Cobertura atual
 - Despesas por função: 27 UFs (2026, RREO 4º bimestre), município de São Paulo (2025, 6º bimestre, e 2026, 4º bimestre).
@@ -37,7 +38,7 @@ Dar acesso unificado, verificável e apartidário aos registros oficiais de arre
 
 ## Limites pendentes
 - União federal e municípios além de São Paulo ainda não integrados ao painel fiscal.
-- Detalhamento por órgão, programa, empenho, liquidação, fornecedor, pagamento, documento, cartões corporativos e transferências precisa de outras APIs oficiais além do RREO.
+- A consulta Transferegov acrescenta lançamentos, favorecidos e subtransações apenas de Transferências Especiais. A cobertura federal completa por órgão, programa, fornecedor, pagamento, documento e cartões corporativos continua pendente; a API do Portal da Transparência requer chave própria. Contas podem agrupar mais de um plano e lançamentos bancários não são todos pagamentos finais.
 - Compromissos eleitorais exigem documentos originais, classificação do andamento com evidências e diferenciação entre proposta, tramitação e resultado.
 - Dados legados de políticos sem fonte verificável não são mostrados como oficiais.
 - O cliente carrega até 1.000 registros de despesa e 1.000 de receita; antes de integrar os mais de 5 mil municípios, implementar paginação de dados **no servidor** e agregações sem duplicidade.
